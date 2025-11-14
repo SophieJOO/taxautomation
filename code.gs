@@ -1,7 +1,12 @@
 /**
- * 아현재한의원 회계 자동화 시스템 v3.2
+ * 아현재한의원 회계 자동화 시스템 v3.3
  * 완전 자동화 버전 - 사람 개입 최소화
- * v3.2 업데이트 (최신):
+ * v3.3 업데이트 (최신):
+ * - 세금계산서 관리 기능 추가
+ * - 입금내역과 세금계산서 발행여부 대조
+ * - 미발행 내역 자동 검사
+ * - 월별 대조 보고서 생성
+ * v3.2 업데이트:
  * - HTML 기반 CSV 파일 업로더 추가 (드래그 앤 드롭 지원!)
  * - 파일 업로드 후 자동 파싱 및 분류
  * - 사용자 친화적 UI 제공
@@ -37,11 +42,16 @@ function onOpen() {
       .addItem('📈 계정과목별 집계', 'showCategoryTotals')
       .addItem('⚙️ 분류규칙 자동 최적화', 'optimizeRules')
       .addSeparator()
+      .addSubMenu(ui.createMenu('🧾 세금계산서 관리')
+        .addItem('📋 입금내역 보기', 'showIncomeTransactions')
+        .addItem('⚠️ 미발행 내역 검사', 'checkTaxInvoiceStatus')
+        .addItem('📊 월별 대조 보고서', 'generateTaxInvoiceReport'))
+      .addSeparator()
       .addItem('🔧 기존 데이터 복구', 'fixExistingData')
       .addItem('🆘 도움말', 'showHelp')
       .addToUi();
 
-    SpreadsheetApp.getActive().toast('아현재한의원 회계 시스템 v3.2 준비 완료! [CSV 파일 업로드] 메뉴를 확인하세요!', '알림', 5);
+    SpreadsheetApp.getActive().toast('아현재한의원 회계 시스템 v3.3 준비 완료! 세금계산서 관리 기능이 추가되었습니다!', '알림', 5);
   } catch (error) {
     Logger.log('메뉴 생성 오류: ' + error.toString());
   }
@@ -935,22 +945,27 @@ function fixExistingData() {
 function showHelp() {
   const ui = SpreadsheetApp.getUi();
 
-  const message = `🏥 아현재한의원 회계 자동화 시스템 v3.2\n\n` +
+  const message = `🏥 아현재한의원 회계 자동화 시스템 v3.3\n\n` +
     `📖 사용 방법 (두 가지 방식):\n\n` +
-    `✨ 방법 1: CSV 파일 업로드 (NEW! 추천)\n` +
+    `✨ 방법 1: CSV 파일 업로드 (추천)\n` +
     `1️⃣ [CSV 파일 업로드] 메뉴 클릭\n` +
     `2️⃣ CSV 파일을 드래그하거나 선택\n` +
     `3️⃣ 자동으로 파싱 및 분류 완료!\n\n` +
     `📋 방법 2: 기존 방식\n` +
     `1️⃣ [CSV임시]에 데이터 붙여넣기\n` +
     `2️⃣ [원클릭 자동처리] 버튼 클릭\n\n` +
+    `🧾 세금계산서 관리 (NEW!):\n` +
+    `1️⃣ [입금내역 보기] - 입금건만 필터링\n` +
+    `2️⃣ [미발행 내역 검사] - 미발행 항목 찾기\n` +
+    `3️⃣ [월별 대조 보고서] - 월별 발행률 확인\n\n` +
     `💡 팁:\n` +
     `- CSV 파일 업로더가 가장 편리합니다!\n` +
+    `- 세금계산서 열에 "발행" 또는 "미발행" 입력\n` +
     `- 자주 나오는 거래처는 [분류규칙]에 추가하세요\n` +
     `- 월간보고서는 자동 생성됩니다\n` +
-    `- 세무사 전달용 파일 3가지 형식 지원\n` +
+    `- v3.3: 세금계산서 관리 기능 추가 (NEW!)\n` +
     `- v3.2: HTML 기반 파일 업로더 추가\n` +
-    `- v3.1: 파싱/분류 오류 수정 및 데이터 복구 기능 추가\n\n` +
+    `- v3.1: 파싱/분류 오류 수정 및 데이터 복구\n\n` +
     `🆘 문제 발생시:\n` +
     `1. Setup.gs가 실행되었는지 확인\n` +
     `2. 모든 시트가 생성되었는지 확인\n` +
@@ -1165,12 +1180,342 @@ function exportCategorySummary() {
 
 function formatDateForExport(date) {
   if (!date) return '';
-  
+
   const d = new Date(date);
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
-  
+
   return `${year}-${month}-${day}`;
+}
+
+// ========================================
+// 15. 세금계산서 관리 기능
+// ========================================
+
+/**
+ * 입금내역 보기
+ */
+function showIncomeTransactions() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const txnSheet = ss.getSheetByName('거래내역통합');
+  let incomeSheet = ss.getSheetByName('입금내역');
+  const ui = SpreadsheetApp.getUi();
+
+  if (!txnSheet) {
+    ui.alert('오류', '[거래내역통합] 시트를 찾을 수 없습니다!', ui.ButtonSet.OK);
+    return;
+  }
+
+  // 입금내역 시트 생성
+  if (!incomeSheet) {
+    incomeSheet = ss.insertSheet('입금내역');
+  } else {
+    incomeSheet.clear();
+  }
+
+  // 헤더
+  const headers = ['일자', '거래처', '입금액', '세금계산서', '메모'];
+  incomeSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+
+  incomeSheet.getRange(1, 1, 1, headers.length)
+    .setFontWeight('bold')
+    .setBackground('#34a853')
+    .setFontColor('#ffffff')
+    .setHorizontalAlignment('center');
+
+  // 데이터 로드
+  const lastRow = txnSheet.getLastRow();
+  if (lastRow < 2) {
+    ui.alert('데이터가 없습니다!');
+    return;
+  }
+
+  const data = txnSheet.getRange(2, 1, lastRow - 1, 11).getValues();
+
+  // 입금내역만 필터링 (E열: 입금액이 0보다 큰 것)
+  const incomeData = [];
+  data.forEach(row => {
+    const creditAmount = parseFloat(row[4]) || 0;  // E열: 입금액
+    if (creditAmount > 0) {
+      incomeData.push([
+        formatDateForExport(row[0]),  // 일자
+        row[2] || '',  // 거래처
+        creditAmount,  // 입금액
+        row[10] || '',  // K열: 세금계산서
+        row[9] || ''   // J열: 메모
+      ]);
+    }
+  });
+
+  if (incomeData.length === 0) {
+    ui.alert('입금내역이 없습니다!');
+    return;
+  }
+
+  // 데이터 작성 (날짜 최신순 정렬)
+  incomeData.sort((a, b) => b[0].localeCompare(a[0]));
+  incomeSheet.getRange(2, 1, incomeData.length, headers.length).setValues(incomeData);
+
+  // 숫자 포맷
+  incomeSheet.getRange(2, 3, incomeData.length, 1).setNumberFormat('#,##0');
+
+  // 조건부 서식 (세금계산서 미발행 강조)
+  const taxInvoiceRange = incomeSheet.getRange(2, 4, incomeData.length, 1);
+
+  const issuedRule = SpreadsheetApp.newConditionalFormatRule()
+    .whenTextEqualTo('발행')
+    .setBackground('#d1fae5')
+    .setFontColor('#065f46')
+    .setRanges([taxInvoiceRange])
+    .build();
+
+  const notIssuedRule = SpreadsheetApp.newConditionalFormatRule()
+    .whenTextEqualTo('미발행')
+    .setBackground('#fee2e2')
+    .setFontColor('#991b1b')
+    .setRanges([taxInvoiceRange])
+    .build();
+
+  const emptyRule = SpreadsheetApp.newConditionalFormatRule()
+    .whenCellEmpty()
+    .setBackground('#fff3cd')
+    .setFontColor('#856404')
+    .setRanges([taxInvoiceRange])
+    .build();
+
+  incomeSheet.setConditionalFormatRules([issuedRule, notIssuedRule, emptyRule]);
+
+  // 열 너비 자동 조정
+  incomeSheet.autoResizeColumns(1, headers.length);
+  incomeSheet.setFrozenRows(1);
+
+  // 통계 계산
+  const totalIncome = incomeData.reduce((sum, row) => sum + row[2], 0);
+  const issuedCount = incomeData.filter(row => row[3] === '발행').length;
+  const notIssuedCount = incomeData.filter(row => row[3] === '미발행' || row[3] === '').length;
+
+  ui.alert(
+    '✅ 입금내역 조회 완료!',
+    `[입금내역] 시트에 ${incomeData.length}건이 생성되었습니다.\n\n` +
+    `💰 총 입금액: ${totalIncome.toLocaleString()}원\n` +
+    `✅ 세금계산서 발행: ${issuedCount}건\n` +
+    `⚠️ 미발행/확인필요: ${notIssuedCount}건\n\n` +
+    `세금계산서 열에 "발행" 또는 "미발행"을 직접 입력하세요.`,
+    ui.ButtonSet.OK
+  );
+}
+
+/**
+ * 세금계산서 미발행 내역 검사
+ */
+function checkTaxInvoiceStatus() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const txnSheet = ss.getSheetByName('거래내역통합');
+  const ui = SpreadsheetApp.getUi();
+
+  if (!txnSheet) {
+    ui.alert('오류', '[거래내역통합] 시트를 찾을 수 없습니다!', ui.ButtonSet.OK);
+    return;
+  }
+
+  const lastRow = txnSheet.getLastRow();
+  if (lastRow < 2) {
+    ui.alert('데이터가 없습니다!');
+    return;
+  }
+
+  const data = txnSheet.getRange(2, 1, lastRow - 1, 11).getValues();
+
+  // 입금내역 중 세금계산서 미발행 항목 찾기
+  const notIssued = [];
+  data.forEach((row, index) => {
+    const creditAmount = parseFloat(row[4]) || 0;  // E열: 입금액
+    const taxInvoice = row[10] || '';  // K열: 세금계산서
+
+    if (creditAmount > 0 && taxInvoice !== '발행') {
+      notIssued.push({
+        rowNum: index + 2,
+        date: formatDateForExport(row[0]),
+        merchant: row[2],
+        amount: creditAmount,
+        status: taxInvoice || '미입력'
+      });
+    }
+  });
+
+  if (notIssued.length === 0) {
+    ui.alert('✅ 모든 입금내역에 세금계산서가 발행되었습니다! 🎉', ui.ButtonSet.OK);
+    return;
+  }
+
+  // 거래처별 집계
+  const merchantGroups = {};
+  notIssued.forEach(item => {
+    if (!merchantGroups[item.merchant]) {
+      merchantGroups[item.merchant] = { count: 0, total: 0 };
+    }
+    merchantGroups[item.merchant].count++;
+    merchantGroups[item.merchant].total += item.amount;
+  });
+
+  // 금액순 정렬
+  const sorted = Object.entries(merchantGroups)
+    .sort((a, b) => b[1].total - a[1].total)
+    .slice(0, 15);
+
+  let message = `⚠️ 세금계산서 미발행 내역: ${notIssued.length}건\n\n`;
+  message += `💰 총 미발행 금액: ${notIssued.reduce((sum, item) => sum + item.amount, 0).toLocaleString()}원\n\n`;
+  message += `📋 거래처별 현황 (TOP 15):\n\n`;
+
+  sorted.forEach(([merchant, data], index) => {
+    message += `${index + 1}. ${merchant}\n`;
+    message += `   ${data.count}건, ${data.total.toLocaleString()}원\n`;
+  });
+
+  message += `\n💡 [입금내역 보기]에서 세금계산서 상태를 확인하세요!`;
+
+  ui.alert('세금계산서 미발행 검사', message, ui.ButtonSet.OK);
+}
+
+/**
+ * 월별 세금계산서 대조 보고서 생성
+ */
+function generateTaxInvoiceReport() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const txnSheet = ss.getSheetByName('거래내역통합');
+  let reportSheet = ss.getSheetByName('세금계산서대조');
+  const ui = SpreadsheetApp.getUi();
+
+  if (!txnSheet) {
+    ui.alert('오류', '[거래내역통합] 시트를 찾을 수 없습니다!', ui.ButtonSet.OK);
+    return;
+  }
+
+  // 보고서 시트 생성
+  if (!reportSheet) {
+    reportSheet = ss.insertSheet('세금계산서대조');
+  } else {
+    reportSheet.clear();
+  }
+
+  // 헤더
+  const headers = ['월', '총 입금액', '발행완료 금액', '미발행 금액', '발행건수', '미발행건수', '발행률'];
+  reportSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+
+  reportSheet.getRange(1, 1, 1, headers.length)
+    .setFontWeight('bold')
+    .setBackground('#f59e0b')
+    .setFontColor('#ffffff')
+    .setHorizontalAlignment('center');
+
+  // 데이터 로드
+  const lastRow = txnSheet.getLastRow();
+  if (lastRow < 2) {
+    ui.alert('데이터가 없습니다!');
+    return;
+  }
+
+  const data = txnSheet.getRange(2, 1, lastRow - 1, 11).getValues();
+
+  // 월별 집계
+  const monthlyData = {};
+
+  data.forEach(row => {
+    const creditAmount = parseFloat(row[4]) || 0;  // E열: 입금액
+    if (creditAmount <= 0) return;  // 입금이 아니면 스킵
+
+    const date = new Date(row[0]);
+    const month = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    const taxInvoice = row[10] || '';  // K열: 세금계산서
+
+    if (!monthlyData[month]) {
+      monthlyData[month] = {
+        totalIncome: 0,
+        issuedAmount: 0,
+        notIssuedAmount: 0,
+        issuedCount: 0,
+        notIssuedCount: 0
+      };
+    }
+
+    monthlyData[month].totalIncome += creditAmount;
+
+    if (taxInvoice === '발행') {
+      monthlyData[month].issuedAmount += creditAmount;
+      monthlyData[month].issuedCount++;
+    } else {
+      monthlyData[month].notIssuedAmount += creditAmount;
+      monthlyData[month].notIssuedCount++;
+    }
+  });
+
+  // 보고서 데이터 생성
+  const reportData = [];
+  Object.entries(monthlyData).forEach(([month, data]) => {
+    const totalCount = data.issuedCount + data.notIssuedCount;
+    const issueRate = totalCount > 0 ? (data.issuedCount / totalCount * 100).toFixed(1) + '%' : '0%';
+
+    reportData.push([
+      month,
+      data.totalIncome,
+      data.issuedAmount,
+      data.notIssuedAmount,
+      data.issuedCount,
+      data.notIssuedCount,
+      issueRate
+    ]);
+  });
+
+  // 월별 역순 정렬
+  reportData.sort((a, b) => b[0].localeCompare(a[0]));
+
+  if (reportData.length > 0) {
+    reportSheet.getRange(2, 1, reportData.length, headers.length).setValues(reportData);
+
+    // 숫자 포맷
+    reportSheet.getRange(2, 2, reportData.length, 3).setNumberFormat('#,##0');
+
+    // 조건부 서식 (미발행 금액이 0이 아니면 강조)
+    const notIssuedRange = reportSheet.getRange(2, 4, reportData.length, 1);
+    const warningRule = SpreadsheetApp.newConditionalFormatRule()
+      .whenNumberGreaterThan(0)
+      .setBackground('#fee2e2')
+      .setFontColor('#991b1b')
+      .setRanges([notIssuedRange])
+      .build();
+
+    reportSheet.setConditionalFormatRules([warningRule]);
+
+    // 합계 행 추가
+    const totalRow = reportData.length + 2;
+    reportSheet.getRange(totalRow, 1).setValue('총합');
+    reportSheet.getRange(totalRow, 2).setFormula(`=SUM(B2:B${totalRow - 1})`);
+    reportSheet.getRange(totalRow, 3).setFormula(`=SUM(C2:C${totalRow - 1})`);
+    reportSheet.getRange(totalRow, 4).setFormula(`=SUM(D2:D${totalRow - 1})`);
+    reportSheet.getRange(totalRow, 5).setFormula(`=SUM(E2:E${totalRow - 1})`);
+    reportSheet.getRange(totalRow, 6).setFormula(`=SUM(F2:F${totalRow - 1})`);
+    reportSheet.getRange(totalRow, 7).setFormula(`=IF(E${totalRow}+F${totalRow}>0,TEXT(E${totalRow}/(E${totalRow}+F${totalRow}),"0.0%"),"")`);
+
+    reportSheet.getRange(totalRow, 1, 1, headers.length)
+      .setFontWeight('bold')
+      .setBackground('#f4f4f4')
+      .setNumberFormat('#,##0');
+  }
+
+  // 열 너비 자동 조정
+  reportSheet.autoResizeColumns(1, headers.length);
+  reportSheet.setFrozenRows(1);
+
+  ui.alert(
+    '✅ 세금계산서 대조 보고서 생성 완료!',
+    `[세금계산서대조] 시트에 ${reportData.length}개월 데이터가 생성되었습니다.\n\n` +
+    `📋 포함 내용:\n` +
+    `- 월별 총 입금액\n` +
+    `- 세금계산서 발행/미발행 금액 및 건수\n` +
+    `- 발행률\n\n` +
+    `⚠️ 미발행 금액이 빨간색으로 강조됩니다.`,
+    ui.ButtonSet.OK
+  );
 }
 
