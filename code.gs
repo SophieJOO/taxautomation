@@ -533,60 +533,78 @@ function matchRegex(text, pattern) {
 function generateMonthlyReport(silentMode = false) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const txnSheet = ss.getSheetByName('거래내역통합');
+  const rulesSheet = ss.getSheetByName('분류규칙');
   let reportSheet = ss.getSheetByName('월간보고서');
   const ui = SpreadsheetApp.getUi();
-  
+
   // 보고서 시트 생성 (없으면)
   if (!reportSheet) {
     reportSheet = ss.insertSheet('월간보고서');
   } else {
     reportSheet.clear();
   }
-  
+
   // 헤더 작성
   const headers = ['월', '대분류', '계정과목', '사업지출', '개인지출', '합계', '거래건수'];
   reportSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
   reportSheet.getRange(1, 1, 1, headers.length).setFontWeight('bold').setBackground('#4285f4').setFontColor('#ffffff');
-  
+
+  // 분류규칙에서 대분류 매핑 생성 (계정과목 -> 대분류)
+  const categoryToMainCategory = {};
+  if (rulesSheet) {
+    const rulesLastRow = rulesSheet.getLastRow();
+    if (rulesLastRow > 1) {
+      const rulesData = rulesSheet.getRange(2, 1, rulesLastRow - 1, 6).getValues();
+      rulesData.forEach(rule => {
+        const mainCategory = rule[1];  // B열: 대분류
+        const subCategory = rule[2];   // C열: 중분류(계정과목)
+        if (subCategory && mainCategory) {
+          categoryToMainCategory[subCategory] = mainCategory;
+        }
+      });
+    }
+  }
+
   // 데이터 집계
   const data = txnSheet.getRange(2, 1, txnSheet.getLastRow()-1, 10).getValues();
-  
+
   const monthlyData = {};
-  
+
   data.forEach(row => {
     const date = new Date(row[0]);
     const month = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
     const category = row[7] || '미분류';  // H열: 최종분류
     const businessType = row[8] || '확인필요';  // I열: 사업/개인
     const amount = parseFloat(row[3]) || 0;  // D열: 출금액
-    
+
     const key = `${month}|${category}`;
-    
+
     if (!monthlyData[key]) {
       monthlyData[key] = {
         month: month,
         category: category,
+        mainCategory: categoryToMainCategory[category] || '기타',  // 대분류 매핑
         business: 0,
         personal: 0,
         count: 0
       };
     }
-    
+
     if (businessType === '사업') {
       monthlyData[key].business += amount;
     } else if (businessType === '개인') {
       monthlyData[key].personal += amount;
     }
-    
+
     monthlyData[key].count++;
   });
-  
+
   // 보고서 작성
   const reportData = [];
   Object.values(monthlyData).forEach(item => {
     reportData.push([
       item.month,
-      '',  // 대분류 (추후 추가)
+      item.mainCategory,  // 대분류
       item.category,
       item.business,
       item.personal,
