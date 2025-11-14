@@ -440,7 +440,8 @@ function runAutoCategory(silentMode = false) {
     // 각 거래 분류
     for (let i = 0; i < txnData.length; i++) {
       const rowNum = i + 2;
-      const merchant = txnData[i][2];  // C열: 거래처
+      const merchantRaw = txnData[i][2];  // C열: 거래처
+      const merchant = (merchantRaw || '').toString().trim();  // 안전하게 문자열로 변환
       const manualCategory = txnData[i][6];  // G열: 수동분류
 
       // H열에 수식이 없으면 추가 (기존 데이터 복구)
@@ -465,7 +466,7 @@ function runAutoCategory(silentMode = false) {
         if (!rule[3]) continue;
 
         const keywords = rule[3].toString().toLowerCase().split('|');
-        const merchantLower = merchant.toLowerCase().trim();
+        const merchantLower = merchant.toLowerCase();
 
         for (const keyword of keywords) {
           const trimmedKeyword = keyword.trim();
