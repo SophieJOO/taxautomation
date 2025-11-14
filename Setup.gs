@@ -24,76 +24,90 @@ function onOpen() {
  * 메인 설정 함수
  */
 function setupAhyunClinicSheets() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  
-  if (!ss) {
-    Browser.msgBox('오류', '스프레드시트를 찾을 수 없습니다.', Browser.Buttons.OK);
-    return;
-  }
-  
-  const ui = SpreadsheetApp.getUi();
-  
-  const response = ui.alert(
-    '🏥 아현재한의원 회계 시스템 설정',
-    '다음 시트들이 자동으로 생성됩니다:\n\n' +
-    '1. 거래내역통합\n' +
-    '2. 분류규칙\n' +
-    '3. 월간보고서\n' +
-    '4. 세무사전달\n' +
-    '5. CSV임시\n\n' +
-    '계속하시겠습니까?',
-    ui.ButtonSet.YES_NO
-  );
-  
-  if (response != ui.Button.YES) {
-    ui.alert('취소되었습니다.');
-    return;
-  }
-  
   try {
+    // 스프레드시트 객체 가져오기 (더 안전한 방법)
+    const ss = SpreadsheetApp.getActive();
+
+    if (!ss) {
+      throw new Error('스프레드시트를 찾을 수 없습니다. Google Sheets에서 [🔧 시스템 설정] 메뉴를 통해 실행해주세요.');
+    }
+
+    const ui = SpreadsheetApp.getUi();
+
+    const response = ui.alert(
+      '🏥 아현재한의원 회계 시스템 설정',
+      '다음 시트들이 자동으로 생성됩니다:\n\n' +
+      '1. 거래내역통합 (세금계산서 열 포함)\n' +
+      '2. 분류규칙\n' +
+      '3. 월간보고서\n' +
+      '4. 세무사전달\n' +
+      '5. CSV임시\n\n' +
+      '계속하시겠습니까?',
+      ui.ButtonSet.YES_NO
+    );
+
+    if (response != ui.Button.YES) {
+      ui.alert('취소되었습니다.');
+      return;
+    }
+
     // 진행 상황 표시
     SpreadsheetApp.getActive().toast('설정 시작...', '진행중', 3);
-    
+
     // 1. 거래내역통합 시트
     SpreadsheetApp.getActive().toast('1/5: 거래내역통합 시트 생성 중...', '진행중', 2);
     createTransactionSheet(ss);
-    
+
     // 2. 분류규칙 시트
     SpreadsheetApp.getActive().toast('2/5: 분류규칙 시트 생성 중...', '진행중', 2);
     createRulesSheet(ss);
-    
+
     // 3. 월간보고서 시트
     SpreadsheetApp.getActive().toast('3/5: 월간보고서 시트 생성 중...', '진행중', 2);
     createMonthlyReportSheet(ss);
-    
+
     // 4. 세무사전달 시트
     SpreadsheetApp.getActive().toast('4/5: 세무사전달 시트 생성 중...', '진행중', 2);
     createAccountantSheet(ss);
-    
+
     // 5. CSV임시 시트
     SpreadsheetApp.getActive().toast('5/5: CSV임시 시트 생성 중...', '진행중', 2);
     createTempSheet(ss);
-    
+
     // 완료
     SpreadsheetApp.getActive().toast('설정 완료!', '완료', 3);
-    
+
     ui.alert(
       '✅ 설정 완료!',
       '모든 시트가 생성되었습니다.\n\n' +
+      '📋 생성된 시트:\n' +
+      '- 거래내역통합 (세금계산서 열 포함)\n' +
+      '- 분류규칙\n' +
+      '- 월간보고서\n' +
+      '- 세무사전달\n' +
+      '- CSV임시\n\n' +
       '다음 단계:\n' +
-      '1. [확장 프로그램] > [Apps Script] 열기\n' +
-      '2. 왼쪽에서 코드.gs 클릭 (또는 새로 생성)\n' +
-      '3. Code.gs 파일 내용을 전체 복사해서 붙여넣기\n' +
-      '4. 저장 (💾) 후 시트 닫기\n' +
-      '5. Google Sheets 새로고침 (F5)\n' +
-      '6. [💰 한의원 회계] 메뉴 확인!\n\n' +
+      '1. code.gs 파일이 업로드되었는지 확인\n' +
+      '2. Google Sheets 새로고침 (F5)\n' +
+      '3. [💰 한의원 회계] 메뉴 확인!\n\n' +
       '설정이 완료되었습니다! 🎉',
       ui.ButtonSet.OK
     );
-    
+
   } catch (error) {
     Logger.log('설정 오류: ' + error.toString());
-    ui.alert('오류 발생', '오류: ' + error.toString() + '\n\n로그를 확인하세요.', ui.ButtonSet.OK);
+    Logger.log('스택 트레이스: ' + error.stack);
+
+    const ui = SpreadsheetApp.getUi();
+    ui.alert(
+      '오류 발생',
+      '오류: ' + error.message + '\n\n' +
+      '해결 방법:\n' +
+      '1. Google Sheets에서 실행하고 있는지 확인\n' +
+      '2. [🔧 시스템 설정] 메뉴를 통해 실행\n' +
+      '3. Apps Script 에디터에서 직접 실행하지 마세요',
+      ui.ButtonSet.OK
+    );
   }
 }
 
