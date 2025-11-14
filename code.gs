@@ -53,13 +53,15 @@ function onOpen() {
       .addSubMenu(ui.createMenu('🧾 세금계산서 관리')
         .addItem('📋 입금내역 보기', 'showIncomeTransactions')
         .addItem('⚠️ 미발행 내역 검사', 'checkTaxInvoiceStatus')
-        .addItem('📊 월별 대조 보고서', 'generateTaxInvoiceReport'))
+        .addItem('📊 월별 대조 보고서', 'generateTaxInvoiceReport')
+        .addSeparator()
+        .addItem('🏦 홈택스 대조 (기업은행)', 'crossReferenceHometax'))
       .addSeparator()
       .addItem('🔧 기존 데이터 복구', 'fixExistingData')
       .addItem('🆘 도움말', 'showHelp')
       .addToUi();
 
-    SpreadsheetApp.getActive().toast('아현재한의원 회계 시스템 v3.3 준비 완료! 세금계산서 관리 기능이 추가되었습니다!', '알림', 5);
+    SpreadsheetApp.getActive().toast('아현재한의원 회계 시스템 v3.4 준비 완료! 홈택스 대조 기능이 추가되었습니다!', '알림', 5);
   } catch (error) {
     Logger.log('메뉴 생성 오류: ' + error.toString());
   }
@@ -1525,5 +1527,227 @@ function generateTaxInvoiceReport() {
     `⚠️ 미발행 금액이 빨간색으로 강조됩니다.`,
     ui.ButtonSet.OK
   );
+}
+
+/**
+ * 홈택스 세금계산서 대조 (기업은행 입금내역)
+ * 기업은행 통장 입금내역과 홈택스 발행내역을 대조하여 미발행 의심 건 찾기
+ */
+function crossReferenceHometax() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const txnSheet = ss.getSheetByName('거래내역통합');
+  const invoiceSheet = ss.getSheetByName('세금계산서내역');
+  let resultSheet = ss.getSheetByName('홈택스대조결과');
+  const ui = SpreadsheetApp.getUi();
+
+  if (!txnSheet) {
+    ui.alert('오류', '[거래내역통합] 시트를 찾을 수 없습니다!', ui.ButtonSet.OK);
+    return;
+  }
+
+  if (!invoiceSheet) {
+    ui.alert('오류', '[세금계산서내역] 시트를 찾을 수 없습니다!\n\n먼저 홈택스에서 세금계산서 발행내역을 다운로드하여 [세금계산서내역] 시트에 붙여넣으세요.', ui.ButtonSet.OK);
+    return;
+  }
+
+  // 결과 시트 생성
+  if (!resultSheet) {
+    resultSheet = ss.insertSheet('홈택스대조결과');
+  } else {
+    resultSheet.clear();
+  }
+
+  // 헤더
+  const headers = ['일자', '거래처', '입금액', '세금계산서 매칭', '비고'];
+  resultSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+
+  resultSheet.getRange(1, 1, 1, headers.length)
+    .setFontWeight('bold')
+    .setBackground('#ea4335')
+    .setFontColor('#ffffff')
+    .setHorizontalAlignment('center');
+
+  // 1. 기업은행 입금내역 로드 (B열 = 기업은행, E열 > 0)
+  const txnLastRow = txnSheet.getLastRow();
+  if (txnLastRow < 2) {
+    ui.alert('거래내역이 없습니다!');
+    return;
+  }
+
+  const txnData = txnSheet.getRange(2, 1, txnLastRow - 1, 11).getValues();
+  const ibkDeposits = [];
+
+  txnData.forEach((row, index) => {
+    const account = (row[1] || '').toString().trim();  // B열: 카드/계좌
+    const creditAmount = parseFloat(row[4]) || 0;  // E열: 입금액
+
+    if (account.includes('기업은행') && creditAmount > 0) {
+      ibkDeposits.push({
+        rowNum: index + 2,
+        date: formatDateForExport(row[0]),  // A열: 일자
+        merchant: (row[2] || '').toString().trim(),  // C열: 거래처
+        amount: creditAmount,
+        taxInvoice: row[10] || '',  // K열: 세금계산서
+        memo: row[9] || ''  // J열: 메모
+      });
+    }
+  });
+
+  if (ibkDeposits.length === 0) {
+    ui.alert('기업은행 입금내역이 없습니다!', ui.ButtonSet.OK);
+    return;
+  }
+
+  // 2. 홈택스 세금계산서 발행내역 로드
+  const invoiceLastRow = invoiceSheet.getLastRow();
+  if (invoiceLastRow < 2) {
+    ui.alert('세금계산서 발행내역이 없습니다!\n\n홈택스에서 발행내역을 다운로드하여 [세금계산서내역] 시트에 붙여넣으세요.', ui.ButtonSet.OK);
+    return;
+  }
+
+  const invoiceData = invoiceSheet.getRange(2, 1, invoiceLastRow - 1, 7).getValues();
+  const issuedInvoices = [];
+
+  invoiceData.forEach(row => {
+    const date = formatDateForExport(row[0]);  // A열: 발행일자
+    const merchant = (row[1] || '').toString().trim();  // B열: 거래처명
+    const supplyAmount = parseFloat(row[2]) || 0;  // C열: 공급가액
+    const taxAmount = parseFloat(row[3]) || 0;  // D열: 세액
+    const totalAmount = parseFloat(row[4]) || 0;  // E열: 합계금액
+
+    // 합계금액이 없으면 공급가액+세액으로 계산
+    const amount = totalAmount > 0 ? totalAmount : (supplyAmount + taxAmount);
+
+    if (amount > 0 && merchant) {
+      issuedInvoices.push({
+        date: date,
+        merchant: merchant,
+        amount: amount,
+        approvalNum: row[5] || ''  // F열: 승인번호
+      });
+    }
+  });
+
+  // 3. 대조 작업 - 각 기업은행 입금에 대해 매칭되는 세금계산서 찾기
+  const unmatchedDeposits = [];
+  const matchedDeposits = [];
+
+  ibkDeposits.forEach(deposit => {
+    let matched = false;
+    let matchInfo = '';
+
+    // 거래처명과 금액으로 매칭 (금액 허용 오차: ±1% 또는 ±1,000원 중 큰 값)
+    for (const invoice of issuedInvoices) {
+      const merchantMatch = normalizeMerchantName(deposit.merchant) === normalizeMerchantName(invoice.merchant);
+      const amountTolerance = Math.max(deposit.amount * 0.01, 1000);
+      const amountMatch = Math.abs(deposit.amount - invoice.amount) <= amountTolerance;
+
+      if (merchantMatch && amountMatch) {
+        matched = true;
+        matchInfo = `매칭됨 (발행일: ${invoice.date}, 금액: ${invoice.amount.toLocaleString()}원)`;
+        matchedDeposits.push([
+          deposit.date,
+          deposit.merchant,
+          deposit.amount,
+          '✅ 발행확인',
+          matchInfo
+        ]);
+        break;
+      }
+    }
+
+    // 매칭되지 않은 경우
+    if (!matched) {
+      let status = '⚠️ 미발행 의심';
+      let note = '홈택스 발행내역에서 찾을 수 없음';
+
+      // K열에 이미 '발행'으로 표시되어 있으면 수동 확인 필요
+      if (deposit.taxInvoice === '발행') {
+        status = '❓ 확인필요';
+        note = 'K열에 발행으로 표시되어 있으나 홈택스 데이터에서 매칭 안됨';
+      }
+
+      unmatchedDeposits.push([
+        deposit.date,
+        deposit.merchant,
+        deposit.amount,
+        status,
+        note
+      ]);
+    }
+  });
+
+  // 4. 결과 작성 (미발행 의심 건을 먼저, 그 다음 발행확인 건)
+  const resultData = [...unmatchedDeposits, ...matchedDeposits];
+
+  if (resultData.length === 0) {
+    ui.alert('대조할 데이터가 없습니다!', ui.ButtonSet.OK);
+    return;
+  }
+
+  resultSheet.getRange(2, 1, resultData.length, headers.length).setValues(resultData);
+
+  // 숫자 포맷
+  resultSheet.getRange(2, 3, resultData.length, 1).setNumberFormat('#,##0');
+
+  // 조건부 서식 (미발행 의심 = 빨강, 확인필요 = 노랑, 발행확인 = 초록)
+  const statusRange = resultSheet.getRange(2, 4, resultData.length, 1);
+
+  const unmatchedRule = SpreadsheetApp.newConditionalFormatRule()
+    .whenTextContains('미발행 의심')
+    .setBackground('#fee2e2')
+    .setFontColor('#991b1b')
+    .setRanges([statusRange])
+    .build();
+
+  const checkRule = SpreadsheetApp.newConditionalFormatRule()
+    .whenTextContains('확인필요')
+    .setBackground('#fff3cd')
+    .setFontColor('#856404')
+    .setRanges([statusRange])
+    .build();
+
+  const matchedRule = SpreadsheetApp.newConditionalFormatRule()
+    .whenTextContains('발행확인')
+    .setBackground('#d1fae5')
+    .setFontColor('#065f46')
+    .setRanges([statusRange])
+    .build();
+
+  resultSheet.setConditionalFormatRules([unmatchedRule, checkRule, matchedRule]);
+
+  // 열 너비 자동 조정
+  resultSheet.autoResizeColumns(1, headers.length);
+  resultSheet.setFrozenRows(1);
+
+  // 통계
+  const totalAmount = ibkDeposits.reduce((sum, d) => sum + d.amount, 0);
+  const unmatchedAmount = unmatchedDeposits.reduce((sum, row) => sum + row[2], 0);
+
+  ui.alert(
+    '✅ 홈택스 대조 완료!',
+    `[홈택스대조결과] 시트에 결과가 생성되었습니다.\n\n` +
+    `📊 대조 결과:\n` +
+    `• 기업은행 입금 총 ${ibkDeposits.length}건 (${totalAmount.toLocaleString()}원)\n` +
+    `• 세금계산서 발행확인: ${matchedDeposits.length}건\n` +
+    `• ⚠️ 미발행 의심: ${unmatchedDeposits.length}건 (${unmatchedAmount.toLocaleString()}원)\n\n` +
+    `💡 빨간색으로 표시된 항목을 확인하세요!`,
+    ui.ButtonSet.OK
+  );
+}
+
+/**
+ * 거래처명 정규화 (대조를 위한 문자열 정리)
+ */
+function normalizeMerchantName(name) {
+  if (!name) return '';
+
+  return name
+    .toString()
+    .trim()
+    .replace(/\s+/g, '')  // 모든 공백 제거
+    .replace(/\(.*?\)/g, '')  // 괄호 안 내용 제거
+    .replace(/주식회사|유한회사|㈜|㈜/g, '')  // 회사 형태 제거
+    .toLowerCase();  // 소문자 변환
 }
 

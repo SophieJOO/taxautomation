@@ -1,5 +1,5 @@
 /**
- * 아현재한의원 회계 자동화 시스템 v3.0
+ * 아현재한의원 회계 자동화 시스템 v3.4
  * Google Sheets 초기 설정 스크립트
  * 이 스크립트를 한 번만 실행하면 모든 시트와 헤더가 자동으로 생성됩니다
  */
@@ -30,7 +30,8 @@ function setupAhyunClinicSheets() {
       '2. 분류규칙\n' +
       '3. 월간보고서\n' +
       '4. 세무사전달\n' +
-      '5. CSV임시\n\n' +
+      '5. CSV임시\n' +
+      '6. 세금계산서내역 (홈택스 데이터)\n\n' +
       '계속하시겠습니까?',
       ui.ButtonSet.YES_NO
     );
@@ -44,24 +45,28 @@ function setupAhyunClinicSheets() {
     SpreadsheetApp.getActive().toast('설정 시작...', '진행중', 3);
 
     // 1. 거래내역통합 시트
-    SpreadsheetApp.getActive().toast('1/5: 거래내역통합 시트 생성 중...', '진행중', 2);
+    SpreadsheetApp.getActive().toast('1/6: 거래내역통합 시트 생성 중...', '진행중', 2);
     createTransactionSheet(ss);
 
     // 2. 분류규칙 시트
-    SpreadsheetApp.getActive().toast('2/5: 분류규칙 시트 생성 중...', '진행중', 2);
+    SpreadsheetApp.getActive().toast('2/6: 분류규칙 시트 생성 중...', '진행중', 2);
     createRulesSheet(ss);
 
     // 3. 월간보고서 시트
-    SpreadsheetApp.getActive().toast('3/5: 월간보고서 시트 생성 중...', '진행중', 2);
+    SpreadsheetApp.getActive().toast('3/6: 월간보고서 시트 생성 중...', '진행중', 2);
     createMonthlyReportSheet(ss);
 
     // 4. 세무사전달 시트
-    SpreadsheetApp.getActive().toast('4/5: 세무사전달 시트 생성 중...', '진행중', 2);
+    SpreadsheetApp.getActive().toast('4/6: 세무사전달 시트 생성 중...', '진행중', 2);
     createAccountantSheet(ss);
 
     // 5. CSV임시 시트
-    SpreadsheetApp.getActive().toast('5/5: CSV임시 시트 생성 중...', '진행중', 2);
+    SpreadsheetApp.getActive().toast('5/6: CSV임시 시트 생성 중...', '진행중', 2);
     createTempSheet(ss);
+
+    // 6. 세금계산서내역 시트
+    SpreadsheetApp.getActive().toast('6/6: 세금계산서내역 시트 생성 중...', '진행중', 2);
+    createTaxInvoiceSheet(ss);
 
     // 완료
     SpreadsheetApp.getActive().toast('설정 완료!', '완료', 3);
@@ -74,7 +79,8 @@ function setupAhyunClinicSheets() {
       '- 분류규칙\n' +
       '- 월간보고서\n' +
       '- 세무사전달\n' +
-      '- CSV임시\n\n' +
+      '- CSV임시\n' +
+      '- 세금계산서내역 (홈택스 데이터)\n\n' +
       '다음 단계:\n' +
       '1. code.gs 파일이 업로드되었는지 확인\n' +
       '2. Google Sheets 새로고침 (F5)\n' +
@@ -352,11 +358,60 @@ function createTempSheet(ss) {
 }
 
 /**
+ * 세금계산서내역 시트 생성
+ */
+function createTaxInvoiceSheet(ss) {
+  if (!ss) throw new Error('스프레드시트 객체가 없습니다.');
+
+  let sheet = ss.getSheetByName('세금계산서내역');
+
+  if (!sheet) {
+    sheet = ss.insertSheet('세금계산서내역');
+    Logger.log('세금계산서내역 시트 생성됨');
+  } else {
+    sheet.clear();
+    Logger.log('세금계산서내역 시트 클리어됨');
+  }
+
+  // 헤더
+  const headers = [['발행일자', '거래처명', '공급가액', '세액', '합계금액', '승인번호', '메모']];
+  sheet.getRange(1, 1, 1, headers[0].length).setValues(headers);
+
+  // 스타일
+  sheet.getRange(1, 1, 1, headers[0].length)
+    .setFontWeight('bold')
+    .setBackground('#0f9d58')
+    .setFontColor('#ffffff')
+    .setHorizontalAlignment('center');
+
+  // 열 너비
+  sheet.setColumnWidth(1, 100);  // 발행일자
+  sheet.setColumnWidth(2, 250);  // 거래처명
+  sheet.setColumnWidth(3, 120);  // 공급가액
+  sheet.setColumnWidth(4, 100);  // 세액
+  sheet.setColumnWidth(5, 120);  // 합계금액
+  sheet.setColumnWidth(6, 150);  // 승인번호
+  sheet.setColumnWidth(7, 200);  // 메모
+
+  // 고정
+  sheet.setFrozenRows(1);
+
+  // 안내 메시지
+  sheet.getRange(3, 1, 1, 7).merge();
+  sheet.getRange(3, 1)
+    .setValue('👆 홈택스에서 다운로드한 세금계산서 발행내역을 여기에 붙여넣으세요')
+    .setFontColor('#666666')
+    .setFontStyle('italic');
+
+  Logger.log('세금계산서내역 시트 설정 완료');
+}
+
+/**
  * 설정 가이드 표시
  */
 function showSetupGuide() {
   const ui = SpreadsheetApp.getUi();
-  
+
   const message = `🏥 아현재한의원 회계 시스템 - 설정 가이드\n\n` +
     `📋 설정 순서:\n\n` +
     `1️⃣ [⚡ 초기 설정 실행] 클릭\n` +
@@ -373,6 +428,6 @@ function showSetupGuide() {
     `6️⃣ CSV를 [CSV임시] 시트에 붙여넣기\n\n` +
     `7️⃣ [💰 한의원 회계] > [🚀 원클릭 자동처리] 클릭\n\n` +
     `✅ 완료!`;
-  
+
   ui.alert('설정 가이드', message, ui.ButtonSet.OK);
 }
