@@ -230,10 +230,10 @@ function runFullComparison() {
   resultSheet.getRange(2, 1, validatedData.length, headers[0].length).setValues(validatedData);
 
   // 숫자 포맷
-  resultSheet.getRange(2, 3, resultData.length, 1).setNumberFormat('#,##0');
+  resultSheet.getRange(2, 3, validatedData.length, 1).setNumberFormat('#,##0');
 
   // 조건부 서식
-  const statusRange = resultSheet.getRange(2, 5, resultData.length, 1);
+  const statusRange = resultSheet.getRange(2, 5, validatedData.length, 1);
 
   const unmatchedRule = SpreadsheetApp.newConditionalFormatRule()
     .whenTextContains('미발행 의심')
