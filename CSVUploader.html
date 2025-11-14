@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <title>CSV 파일 업로드</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .container {
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      max-width: 600px;
+      width: 100%;
+      padding: 40px;
+      animation: slideIn 0.5s ease-out;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-30px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+      font-size: 28px;
+      text-align: center;
+    }
+
+    .subtitle {
+      color: #666;
+      text-align: center;
+      margin-bottom: 30px;
+      font-size: 14px;
+    }
+
+    .upload-area {
+      border: 3px dashed #667eea;
+      border-radius: 15px;
+      padding: 50px 20px;
+      text-align: center;
+      background: #f8f9ff;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      margin-bottom: 20px;
+    }
+
+    .upload-area:hover {
+      background: #eef0ff;
+      border-color: #764ba2;
+    }
+
+    .upload-area.dragover {
+      background: #e0e7ff;
+      border-color: #4f46e5;
+      transform: scale(1.02);
+    }
+
+    .upload-icon {
+      font-size: 60px;
+      margin-bottom: 15px;
+    }
+
+    .upload-text {
+      color: #667eea;
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+
+    .upload-hint {
+      color: #999;
+      font-size: 14px;
+    }
+
+    #fileInput {
+      display: none;
+    }
+
+    .file-info {
+      background: #f0f4ff;
+      padding: 15px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      display: none;
+    }
+
+    .file-info.show {
+      display: block;
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    .file-name {
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 5px;
+    }
+
+    .file-details {
+      color: #666;
+      font-size: 13px;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 10px;
+    }
+
+    button {
+      flex: 1;
+      padding: 15px;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    }
+
+    #uploadBtn {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+
+    #uploadBtn:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+    }
+
+    #uploadBtn:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+
+    #cancelBtn {
+      background: #f3f4f6;
+      color: #666;
+    }
+
+    #cancelBtn:hover {
+      background: #e5e7eb;
+    }
+
+    .progress-container {
+      display: none;
+      margin-top: 20px;
+    }
+
+    .progress-container.show {
+      display: block;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 8px;
+      background: #e5e7eb;
+      border-radius: 10px;
+      overflow: hidden;
+      margin-bottom: 10px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+      width: 0%;
+      transition: width 0.3s ease;
+      border-radius: 10px;
+    }
+
+    .progress-text {
+      text-align: center;
+      color: #666;
+      font-size: 14px;
+    }
+
+    .status {
+      margin-top: 20px;
+      padding: 15px;
+      border-radius: 10px;
+      text-align: center;
+      font-weight: 600;
+      display: none;
+    }
+
+    .status.show {
+      display: block;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .status.success {
+      background: #d1fae5;
+      color: #065f46;
+    }
+
+    .status.error {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .format-info {
+      background: #fff8e1;
+      border-left: 4px solid #ffc107;
+      padding: 15px;
+      border-radius: 5px;
+      margin-top: 20px;
+      font-size: 13px;
+      color: #666;
+    }
+
+    .format-info strong {
+      display: block;
+      color: #333;
+      margin-bottom: 8px;
+    }
+
+    .format-info ul {
+      margin-left: 20px;
+      margin-top: 5px;
+    }
+
+    .format-info li {
+      margin: 3px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🏥 CSV 파일 업로드</h1>
+    <p class="subtitle">아현재한의원 회계 자동화 시스템 v3.1</p>
+
+    <div class="upload-area" id="uploadArea">
+      <div class="upload-icon">📁</div>
+      <div class="upload-text">클릭하거나 파일을 드래그하세요</div>
+      <div class="upload-hint">카드사/은행 CSV 파일을 업로드하세요</div>
+    </div>
+
+    <input type="file" id="fileInput" accept=".csv,text/csv">
+
+    <div class="file-info" id="fileInfo">
+      <div class="file-name" id="fileName">파일명.csv</div>
+      <div class="file-details" id="fileDetails">크기: 0 KB | 행: 0개</div>
+    </div>
+
+    <div class="button-group">
+      <button id="uploadBtn" disabled>업로드 및 자동처리</button>
+      <button id="cancelBtn">취소</button>
+    </div>
+
+    <div class="progress-container" id="progressContainer">
+      <div class="progress-bar">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+      <div class="progress-text" id="progressText">처리 중...</div>
+    </div>
+
+    <div class="status" id="status"></div>
+
+    <div class="format-info">
+      <strong>📋 CSV 파일 형식:</strong>
+      <ul>
+        <li>첫 번째 행은 헤더입니다</li>
+        <li>필수 열: 일자, 카드/계좌, 거래처, 출금액, 입금액</li>
+        <li>선택 열: 메모</li>
+        <li>인코딩: UTF-8 권장</li>
+      </ul>
+    </div>
+  </div>
+
+  <script>
+    const uploadArea = document.getElementById('uploadArea');
+    const fileInput = document.getElementById('fileInput');
+    const fileInfo = document.getElementById('fileInfo');
+    const fileName = document.getElementById('fileName');
+    const fileDetails = document.getElementById('fileDetails');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const cancelBtn = document.getElementById('cancelBtn');
+    const progressContainer = document.getElementById('progressContainer');
+    const progressFill = document.getElementById('progressFill');
+    const progressText = document.getElementById('progressText');
+    const status = document.getElementById('status');
+
+    let selectedFile = null;
+    let parsedData = null;
+
+    // 업로드 영역 클릭
+    uploadArea.addEventListener('click', () => {
+      fileInput.click();
+    });
+
+    // 파일 선택
+    fileInput.addEventListener('change', (e) => {
+      handleFile(e.target.files[0]);
+    });
+
+    // 드래그 앤 드롭
+    uploadArea.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      uploadArea.classList.add('dragover');
+    });
+
+    uploadArea.addEventListener('dragleave', () => {
+      uploadArea.classList.remove('dragover');
+    });
+
+    uploadArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      uploadArea.classList.remove('dragover');
+      handleFile(e.dataTransfer.files[0]);
+    });
+
+    // 파일 처리
+    function handleFile(file) {
+      if (!file) return;
+
+      if (!file.name.endsWith('.csv')) {
+        showStatus('CSV 파일만 업로드 가능합니다!', 'error');
+        return;
+      }
+
+      selectedFile = file;
+      fileName.textContent = file.name;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const text = e.target.result;
+        parsedData = parseCSV(text);
+
+        const sizeKB = (file.size / 1024).toFixed(2);
+        fileDetails.textContent = `크기: ${sizeKB} KB | 행: ${parsedData.length - 1}개 (헤더 제외)`;
+
+        fileInfo.classList.add('show');
+        uploadBtn.disabled = false;
+        hideStatus();
+      };
+      reader.readAsText(file, 'UTF-8');
+    }
+
+    // CSV 파싱
+    function parseCSV(text) {
+      const lines = text.trim().split('\n');
+      const result = [];
+
+      for (let line of lines) {
+        // 간단한 CSV 파싱 (쉼표로 구분, 따옴표 처리)
+        const row = [];
+        let current = '';
+        let inQuotes = false;
+
+        for (let i = 0; i < line.length; i++) {
+          const char = line[i];
+
+          if (char === '"') {
+            inQuotes = !inQuotes;
+          } else if (char === ',' && !inQuotes) {
+            row.push(current.trim());
+            current = '';
+          } else {
+            current += char;
+          }
+        }
+        row.push(current.trim());
+        result.push(row);
+      }
+
+      return result;
+    }
+
+    // 업로드 버튼
+    uploadBtn.addEventListener('click', () => {
+      if (!parsedData) return;
+
+      uploadBtn.disabled = true;
+      cancelBtn.disabled = true;
+      progressContainer.classList.add('show');
+
+      setProgress(10, 'CSV 데이터 전송 중...');
+
+      // Google Apps Script 서버로 데이터 전송
+      google.script.run
+        .withSuccessHandler(onSuccess)
+        .withFailureHandler(onError)
+        .processUploadedCSV(parsedData);
+    });
+
+    // 취소 버튼
+    cancelBtn.addEventListener('click', () => {
+      google.script.host.close();
+    });
+
+    // 성공 핸들러
+    function onSuccess(result) {
+      setProgress(100, '완료!');
+
+      setTimeout(() => {
+        showStatus(
+          `✅ 업로드 완료!\n\n` +
+          `📥 가져온 거래: ${result.imported}건\n` +
+          `✅ 자동분류: ${result.categorized}건\n` +
+          `❓ 미분류: ${result.uncategorized}건`,
+          'success'
+        );
+
+        uploadBtn.disabled = true;
+        cancelBtn.textContent = '닫기';
+        cancelBtn.disabled = false;
+      }, 500);
+    }
+
+    // 에러 핸들러
+    function onError(error) {
+      showStatus(`❌ 오류 발생: ${error.message}`, 'error');
+      uploadBtn.disabled = false;
+      cancelBtn.disabled = false;
+      progressContainer.classList.remove('show');
+    }
+
+    // 진행률 표시
+    function setProgress(percent, text) {
+      progressFill.style.width = percent + '%';
+      progressText.textContent = text;
+    }
+
+    // 상태 메시지 표시
+    function showStatus(message, type) {
+      status.textContent = message;
+      status.className = 'status show ' + type;
+    }
+
+    function hideStatus() {
+      status.classList.remove('show');
+    }
+  </script>
+</body>
+</html>

@@ -132,19 +132,19 @@ function createTransactionSheet(ss) {
   
   // 헤더
   const headers = [
-    ['일자', '카드/계좌', '거래처', '출금액', '입금액', 
-     '자동분류', '수동분류', '최종분류', '사업/개인', '메모']
+    ['일자', '카드/계좌', '거래처', '출금액', '입금액',
+     '자동분류', '수동분류', '최종분류', '사업/개인', '메모', '세금계산서']
   ];
-  
+
   sheet.getRange(1, 1, 1, headers[0].length).setValues(headers);
-  
+
   // 스타일
   sheet.getRange(1, 1, 1, headers[0].length)
     .setFontWeight('bold')
     .setBackground('#4285f4')
     .setFontColor('#ffffff')
     .setHorizontalAlignment('center');
-  
+
   // 열 너비
   sheet.setColumnWidth(1, 100);  // 일자
   sheet.setColumnWidth(2, 150);  // 카드/계좌
@@ -156,6 +156,7 @@ function createTransactionSheet(ss) {
   sheet.setColumnWidth(8, 120);  // 최종분류
   sheet.setColumnWidth(9, 100);  // 사업/개인
   sheet.setColumnWidth(10, 200); // 메모
+  sheet.setColumnWidth(11, 120); // 세금계산서
   
   // 고정
   sheet.setFrozenRows(1);
