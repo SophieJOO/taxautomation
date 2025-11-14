@@ -148,9 +148,15 @@ function runFullComparison() {
   const unmatchedTransactions = [];
   const matchedTransactions = [];
 
-  ibkTransactions.forEach(transaction => {
+  ibkTransactions.forEach((transaction, txIndex) => {
     let matched = false;
     let matchInfo = '';
+
+    // 트랜잭션 데이터 검증
+    if (!transaction || typeof transaction !== 'object') {
+      Logger.log(`경고: Transaction ${txIndex}가 유효하지 않습니다: ${JSON.stringify(transaction)}`);
+      return;
+    }
 
     // 거래처명과 금액으로 매칭
     for (const invoice of issuedInvoices) {
@@ -170,28 +176,36 @@ function runFullComparison() {
       if (merchantMatch && amountMatch) {
         matched = true;
         matchInfo = `매칭됨 (발행일: ${invoice.date}, 금액: ${invoice.amount.toLocaleString()}원)`;
-        matchedTransactions.push([
-          transaction.date,
-          transaction.merchant,
-          transaction.amount,
-          transaction.transactionType,
+
+        // 배열 생성 전 검증
+        const matchedRow = [
+          String(transaction.date || ''),
+          String(transaction.merchant || ''),
+          Number(transaction.amount || 0),
+          String(transaction.transactionType || ''),
           '✅ 발행확인',
-          matchInfo
-        ]);
+          String(matchInfo)
+        ];
+
+        Logger.log(`매칭 성공 ${txIndex}: ${JSON.stringify(matchedRow)}`);
+        matchedTransactions.push(matchedRow);
         break;
       }
     }
 
     // 매칭되지 않은 경우
     if (!matched) {
-      unmatchedTransactions.push([
-        transaction.date,
-        transaction.merchant,
-        transaction.amount,
-        transaction.transactionType,
+      const unmatchedRow = [
+        String(transaction.date || ''),
+        String(transaction.merchant || ''),
+        Number(transaction.amount || 0),
+        String(transaction.transactionType || ''),
         '⚠️ 미발행 의심',
         '홈택스 발행내역에서 찾을 수 없음'
-      ]);
+      ];
+
+      Logger.log(`미매칭 ${txIndex}: ${JSON.stringify(unmatchedRow)}`);
+      unmatchedTransactions.push(unmatchedRow);
     }
   });
 
