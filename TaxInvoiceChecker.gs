@@ -56,7 +56,7 @@ function runFullComparison() {
 
   // 헤더 작성
   const headers = [['일자', '거래처', '금액', '입금/출금', '매칭상태', '비고']];
-  resultSheet.getRange(1, 1, 1, headers[0].length).setValues([headers]);
+  resultSheet.getRange(1, 1, 1, headers[0].length).setValues(headers);
 
   resultSheet.getRange(1, 1, 1, headers[0].length)
     .setFontWeight('bold')
