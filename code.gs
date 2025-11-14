@@ -25,6 +25,14 @@ function onOpen() {
   try {
     const ui = SpreadsheetApp.getUi();
 
+    // 시스템 설정 메뉴 (Setup.gs에서 이동)
+    ui.createMenu('🔧 시스템 설정')
+      .addItem('⚡ 초기 설정 실행', 'setupAhyunClinicSheets')
+      .addItem('🔄 시트 재생성', 'recreateAllSheets')
+      .addItem('📖 설정 가이드', 'showSetupGuide')
+      .addToUi();
+
+    // 한의원 회계 메뉴
     ui.createMenu('💰 한의원 회계')
       .addItem('🚀 원클릭 자동처리', 'oneClickAutomation')
       .addSeparator()
