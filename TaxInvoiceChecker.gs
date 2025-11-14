@@ -313,13 +313,15 @@ function showStatistics() {
   const monthlyStats = {};
 
   data.forEach(row => {
-    const date = row[0];
+    const dateValue = row[0];
     const amount = row[2];
     const status = row[4];
 
-    if (!date) return;
+    if (!dateValue) return;
 
-    const month = date.substring(0, 7); // YYYY-MM
+    // 날짜를 문자열로 변환 (Date 객체일 수 있음)
+    const dateStr = typeof dateValue === 'string' ? dateValue : formatDate(dateValue);
+    const month = dateStr.substring(0, 7); // YYYY-MM
 
     if (!monthlyStats[month]) {
       monthlyStats[month] = {
