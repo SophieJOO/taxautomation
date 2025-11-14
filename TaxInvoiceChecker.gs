@@ -204,7 +204,30 @@ function runFullComparison() {
     return;
   }
 
-  resultSheet.getRange(2, 1, resultData.length, headers[0].length).setValues(resultData);
+  // 데이터 유효성 검사 및 정규화
+  const validatedData = resultData.map((row, index) => {
+    if (!Array.isArray(row)) {
+      Logger.log(`경고: Row ${index}가 배열이 아닙니다: ${JSON.stringify(row)}`);
+      return ['', '', 0, '', '오류', '데이터 형식 오류'];
+    }
+    if (row.length !== 6) {
+      Logger.log(`경고: Row ${index}의 열 개수가 ${row.length}개입니다 (예상: 6개): ${JSON.stringify(row)}`);
+      // 6개로 맞추기
+      while (row.length < 6) row.push('');
+      row = row.slice(0, 6);
+    }
+    // 각 셀이 유효한지 확인
+    return [
+      row[0] || '',  // 일자
+      row[1] || '',  // 거래처
+      row[2] || 0,   // 금액
+      row[3] || '',  // 입금/출금
+      row[4] || '',  // 매칭상태
+      row[5] || ''   // 비고
+    ];
+  });
+
+  resultSheet.getRange(2, 1, validatedData.length, headers[0].length).setValues(validatedData);
 
   // 숫자 포맷
   resultSheet.getRange(2, 3, resultData.length, 1).setNumberFormat('#,##0');
