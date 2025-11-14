@@ -1577,7 +1577,7 @@ function crossReferenceHometax() {
   }
 
   // 헤더
-  const headers = ['일자', '거래처', '입금액', '세금계산서 매칭', '비고'];
+  const headers = ['일자', '거래처', '금액', '세금계산서 매칭', '비고'];
   resultSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
 
   resultSheet.getRange(1, 1, 1, headers.length)
@@ -1586,7 +1586,7 @@ function crossReferenceHometax() {
     .setFontColor('#ffffff')
     .setHorizontalAlignment('center');
 
-  // 1. 기업은행 입금내역 로드 (B열 = 기업은행, E열 > 0)
+  // 1. 기업은행 거래내역 로드 (B열 = 기업은행, D열 또는 E열 > 0)
   const txnLastRow = txnSheet.getLastRow();
   if (txnLastRow < 2) {
     ui.alert('거래내역이 없습니다!');
@@ -1596,18 +1596,23 @@ function crossReferenceHometax() {
   const txnData = txnSheet.getRange(2, 1, txnLastRow - 1, 11).getValues();
   const ibkDeposits = [];
   const allAccounts = new Set();  // 디버깅용: 모든 계좌명 수집
-  let totalDeposits = 0;  // 디버깅용: 전체 입금 건수
+  let totalTransactions = 0;  // 디버깅용: 전체 거래 건수
 
   txnData.forEach((row, index) => {
     const account = (row[1] || '').toString().trim();  // B열: 카드/계좌
+    const debitAmount = parseFloat(row[3]) || 0;   // D열: 출금액
     const creditAmount = parseFloat(row[4]) || 0;  // E열: 입금액
 
     if (account) {
       allAccounts.add(account);
     }
 
-    if (creditAmount > 0) {
-      totalDeposits++;
+    // 입금 또는 출금이 있는 경우
+    const amount = creditAmount > 0 ? creditAmount : (debitAmount > 0 ? debitAmount : 0);
+    const transactionType = creditAmount > 0 ? '입금' : (debitAmount > 0 ? '출금' : '');
+
+    if (amount > 0) {
+      totalTransactions++;
     }
 
     // 기업은행 매칭 (여러 표기법 지원)
@@ -1616,12 +1621,13 @@ function crossReferenceHometax() {
                   account.includes('기업') ||
                   account.toLowerCase().includes('ibk');
 
-    if (isIBK && creditAmount > 0) {
+    if (isIBK && amount > 0) {
       ibkDeposits.push({
         rowNum: index + 2,
         date: formatDateForExport(row[0]),  // A열: 일자
         merchant: (row[2] || '').toString().trim(),  // C열: 거래처
-        amount: creditAmount,
+        amount: amount,
+        transactionType: transactionType,  // 입금/출금 구분
         taxInvoice: row[10] || '',  // K열: 세금계산서
         memo: row[9] || '',  // J열: 메모
         account: account  // 디버깅용
@@ -1631,9 +1637,9 @@ function crossReferenceHometax() {
 
   if (ibkDeposits.length === 0) {
     // 디버깅 정보 제공
-    let debugMsg = '기업은행 입금내역을 찾을 수 없습니다!\n\n';
+    let debugMsg = '기업은행 거래내역을 찾을 수 없습니다!\n\n';
     debugMsg += `📊 전체 거래: ${txnData.length}건\n`;
-    debugMsg += `💰 입금 거래: ${totalDeposits}건\n\n`;
+    debugMsg += `💰 입금/출금 거래: ${totalTransactions}건\n\n`;
     debugMsg += `📋 발견된 계좌/카드 목록 (B열):\n`;
 
     const accountList = Array.from(allAccounts).slice(0, 10);
@@ -1647,7 +1653,7 @@ function crossReferenceHometax() {
 
     debugMsg += `\n💡 B열(카드/계좌)에 "기업은행", "IBK", "기업" 중 하나가 포함되어야 합니다.`;
 
-    ui.alert('기업은행 입금내역 없음', debugMsg, ui.ButtonSet.OK);
+    ui.alert('기업은행 거래내역 없음', debugMsg, ui.ButtonSet.OK);
     return;
   }
 
@@ -1681,7 +1687,7 @@ function crossReferenceHometax() {
     }
   });
 
-  // 3. 대조 작업 - 각 기업은행 입금에 대해 매칭되는 세금계산서 찾기
+  // 3. 대조 작업 - 각 기업은행 거래에 대해 매칭되는 세금계산서 찾기
   const unmatchedDeposits = [];
   const matchedDeposits = [];
 
@@ -1691,13 +1697,21 @@ function crossReferenceHometax() {
 
     // 거래처명과 금액으로 매칭 (금액 허용 오차: ±1% 또는 ±1,000원 중 큰 값)
     for (const invoice of issuedInvoices) {
-      const merchantMatch = normalizeMerchantName(deposit.merchant) === normalizeMerchantName(invoice.merchant);
+      const depositMerchantNorm = normalizeMerchantName(deposit.merchant);
+      const invoiceMerchantNorm = normalizeMerchantName(invoice.merchant);
+
+      // 거래처명 매칭: 정확히 일치하거나 부분 일치 (짧은 이름이 긴 이름에 포함)
+      const exactMatch = depositMerchantNorm === invoiceMerchantNorm;
+      const partialMatch = depositMerchantNorm.includes(invoiceMerchantNorm) ||
+                          invoiceMerchantNorm.includes(depositMerchantNorm);
+      const merchantMatch = exactMatch || (partialMatch && Math.min(depositMerchantNorm.length, invoiceMerchantNorm.length) >= 2);
+
       const amountTolerance = Math.max(deposit.amount * 0.01, 1000);
       const amountMatch = Math.abs(deposit.amount - invoice.amount) <= amountTolerance;
 
       if (merchantMatch && amountMatch) {
         matched = true;
-        matchInfo = `매칭됨 (발행일: ${invoice.date}, 금액: ${invoice.amount.toLocaleString()}원)`;
+        matchInfo = `매칭됨 (발행일: ${invoice.date}, 금액: ${invoice.amount.toLocaleString()}원, ${deposit.transactionType})`;
         matchedDeposits.push([
           deposit.date,
           deposit.merchant,
@@ -1776,15 +1790,19 @@ function crossReferenceHometax() {
   // 통계
   const totalAmount = ibkDeposits.reduce((sum, d) => sum + d.amount, 0);
   const unmatchedAmount = unmatchedDeposits.reduce((sum, row) => sum + row[2], 0);
+  const depositCount = ibkDeposits.filter(d => d.transactionType === '입금').length;
+  const debitCount = ibkDeposits.filter(d => d.transactionType === '출금').length;
 
   ui.alert(
     '✅ 홈택스 대조 완료!',
     `[홈택스대조결과] 시트에 결과가 생성되었습니다.\n\n` +
     `📊 대조 결과:\n` +
-    `• 기업은행 입금 총 ${ibkDeposits.length}건 (${totalAmount.toLocaleString()}원)\n` +
+    `• 기업은행 거래 총 ${ibkDeposits.length}건 (입금 ${depositCount}건, 출금 ${debitCount}건)\n` +
+    `• 총 금액: ${totalAmount.toLocaleString()}원\n` +
     `• 세금계산서 발행확인: ${matchedDeposits.length}건\n` +
     `• ⚠️ 미발행 의심: ${unmatchedDeposits.length}건 (${unmatchedAmount.toLocaleString()}원)\n\n` +
-    `💡 빨간색으로 표시된 항목을 확인하세요!`,
+    `💡 빨간색으로 표시된 항목을 확인하세요!\n` +
+    `💡 거래처명 부분 일치도 지원합니다 (예: "한메디"와 "한메디로")`,
     ui.ButtonSet.OK
   );
 }
