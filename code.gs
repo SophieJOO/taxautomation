@@ -1,6 +1,10 @@
 /**
- * 아현재한의원 회계 자동화 시스템 v3.1
+ * 아현재한의원 회계 자동화 시스템 v3.2
  * 완전 자동화 버전 - 사람 개입 최소화
+ * v3.2 업데이트 (최신):
+ * - HTML 기반 CSV 파일 업로더 추가 (드래그 앤 드롭 지원!)
+ * - 파일 업로드 후 자동 파싱 및 분류
+ * - 사용자 친화적 UI 제공
  * v3.1 업데이트:
  * - 결제내역 파싱 오류 수정 (날짜 정규화)
  * - 자동분류 로직 개선 (수식 자동 복구)
@@ -19,6 +23,7 @@ function onOpen() {
     ui.createMenu('💰 한의원 회계')
       .addItem('🚀 원클릭 자동처리', 'oneClickAutomation')
       .addSeparator()
+      .addItem('📤 CSV 파일 업로드 (신규!)', 'showCSVUploader')
       .addItem('📥 CSV 데이터 가져오기', 'importCSVData')
       .addItem('🔄 자동분류 실행', 'runAutoCategory')
       .addItem('📊 월간 보고서 생성', 'generateMonthlyReport')
@@ -36,14 +41,97 @@ function onOpen() {
       .addItem('🆘 도움말', 'showHelp')
       .addToUi();
 
-    SpreadsheetApp.getActive().toast('아현재한의원 회계 시스템 v3.1 준비 완료!', '알림', 3);
+    SpreadsheetApp.getActive().toast('아현재한의원 회계 시스템 v3.2 준비 완료! [CSV 파일 업로드] 메뉴를 확인하세요!', '알림', 5);
   } catch (error) {
     Logger.log('메뉴 생성 오류: ' + error.toString());
   }
 }
 
 // ========================================
-// 2. 원클릭 자동처리 (핵심 기능!)
+// 2. CSV 파일 업로더 (신규!)
+// ========================================
+
+/**
+ * CSV 파일 업로더 다이얼로그 표시
+ */
+function showCSVUploader() {
+  try {
+    const html = HtmlService.createHtmlOutputFromFile('CSVUploader')
+      .setWidth(650)
+      .setHeight(700)
+      .setTitle('CSV 파일 업로드');
+
+    SpreadsheetApp.getUi().showModalDialog(html, 'CSV 파일 업로드');
+  } catch (error) {
+    Logger.log('CSV 업로더 표시 오류: ' + error.toString());
+    SpreadsheetApp.getUi().alert('오류', 'CSV 업로더를 열 수 없습니다: ' + error.toString(), SpreadsheetApp.getUi().ButtonSet.OK);
+  }
+}
+
+/**
+ * 업로드된 CSV 데이터 처리 (HTML에서 호출)
+ */
+function processUploadedCSV(csvData) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const txnSheet = ss.getSheetByName('거래내역통합');
+
+    if (!txnSheet) {
+      throw new Error('[거래내역통합] 시트를 찾을 수 없습니다. Setup.gs를 먼저 실행하세요.');
+    }
+
+    let imported = 0;
+    const lastRow = txnSheet.getLastRow();
+
+    // 헤더 행 건너뛰기 (csvData[0]은 헤더)
+    for (let i = 1; i < csvData.length; i++) {
+      const row = csvData[i];
+
+      // 빈 행 스킵
+      if (!row[0] || row[0] === '') continue;
+
+      // 날짜 정규화
+      const normalizedDate = normalizeDate(row[0]);
+      if (!normalizedDate) continue;
+
+      // 중복 체크
+      const isDuplicate = checkDuplicate(txnSheet, normalizedDate, row[2], row[3]);
+      if (isDuplicate) continue;
+
+      // [거래내역통합]에 추가
+      const newRow = lastRow + imported + 1;
+      txnSheet.getRange(newRow, 1).setValue(normalizedDate);  // A: 일자
+      txnSheet.getRange(newRow, 2).setValue(row[1] || '');  // B: 카드/계좌
+      txnSheet.getRange(newRow, 3).setValue(row[2] || '');  // C: 거래처
+      txnSheet.getRange(newRow, 4).setValue(parseFloat(row[3]) || 0);  // D: 출금액
+      txnSheet.getRange(newRow, 5).setValue(parseFloat(row[4]) || 0);  // E: 입금액
+      txnSheet.getRange(newRow, 8).setFormula('=IF(G' + newRow + '<>"",G' + newRow + ',F' + newRow + ')');  // H: 최종분류
+      txnSheet.getRange(newRow, 10).setValue(row[5] || '');  // J: 메모
+
+      imported++;
+    }
+
+    // 자동분류 실행
+    const categorized = runAutoCategory(true);
+
+    // 미분류 개수 확인
+    const uncategorized = countUncategorized();
+
+    // 결과 반환
+    return {
+      imported: imported,
+      categorized: categorized,
+      uncategorized: uncategorized
+    };
+
+  } catch (error) {
+    Logger.log('processUploadedCSV 오류: ' + error.toString());
+    throw new Error('CSV 처리 중 오류가 발생했습니다: ' + error.toString());
+  }
+}
+
+// ========================================
+// 3. 원클릭 자동처리 (핵심 기능!)
 // ========================================
 
 function oneClickAutomation() {
@@ -102,7 +190,7 @@ function oneClickAutomation() {
 }
 
 // ========================================
-// 3. CSV 데이터 가져오기 (개선 버전)
+// 4. CSV 데이터 가져오기 (개선 버전)
 // ========================================
 
 function importCSVData(silentMode = false) {
@@ -847,18 +935,21 @@ function fixExistingData() {
 function showHelp() {
   const ui = SpreadsheetApp.getUi();
 
-  const message = `🏥 아현재한의원 회계 자동화 시스템 v3.1\n\n` +
-    `📖 사용 방법:\n\n` +
-    `1️⃣ 매월 1일: 카드사/은행에서 엑셀 다운로드\n` +
-    `2️⃣ Python 스크립트로 통합 CSV 생성\n` +
-    `   → run.bat (Windows) 또는 run.sh (Mac) 실행\n` +
-    `3️⃣ [CSV임시]에 붙여넣기\n` +
-    `4️⃣ [원클릭 자동처리] 버튼 클릭\n` +
-    `5️⃣ 미분류 항목만 확인 (월 5분)\n\n` +
+  const message = `🏥 아현재한의원 회계 자동화 시스템 v3.2\n\n` +
+    `📖 사용 방법 (두 가지 방식):\n\n` +
+    `✨ 방법 1: CSV 파일 업로드 (NEW! 추천)\n` +
+    `1️⃣ [CSV 파일 업로드] 메뉴 클릭\n` +
+    `2️⃣ CSV 파일을 드래그하거나 선택\n` +
+    `3️⃣ 자동으로 파싱 및 분류 완료!\n\n` +
+    `📋 방법 2: 기존 방식\n` +
+    `1️⃣ [CSV임시]에 데이터 붙여넣기\n` +
+    `2️⃣ [원클릭 자동처리] 버튼 클릭\n\n` +
     `💡 팁:\n` +
+    `- CSV 파일 업로더가 가장 편리합니다!\n` +
     `- 자주 나오는 거래처는 [분류규칙]에 추가하세요\n` +
     `- 월간보고서는 자동 생성됩니다\n` +
     `- 세무사 전달용 파일 3가지 형식 지원\n` +
+    `- v3.2: HTML 기반 파일 업로더 추가\n` +
     `- v3.1: 파싱/분류 오류 수정 및 데이터 복구 기능 추가\n\n` +
     `🆘 문제 발생시:\n` +
     `1. Setup.gs가 실행되었는지 확인\n` +
