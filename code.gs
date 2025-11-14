@@ -1594,25 +1594,59 @@ function crossReferenceHometax() {
 
   const txnData = txnSheet.getRange(2, 1, txnLastRow - 1, 11).getValues();
   const ibkDeposits = [];
+  const allAccounts = new Set();  // 디버깅용: 모든 계좌명 수집
+  let totalDeposits = 0;  // 디버깅용: 전체 입금 건수
 
   txnData.forEach((row, index) => {
     const account = (row[1] || '').toString().trim();  // B열: 카드/계좌
     const creditAmount = parseFloat(row[4]) || 0;  // E열: 입금액
 
-    if (account.includes('기업은행') && creditAmount > 0) {
+    if (account) {
+      allAccounts.add(account);
+    }
+
+    if (creditAmount > 0) {
+      totalDeposits++;
+    }
+
+    // 기업은행 매칭 (여러 표기법 지원)
+    const isIBK = account.includes('기업은행') ||
+                  account.includes('IBK') ||
+                  account.includes('기업') ||
+                  account.toLowerCase().includes('ibk');
+
+    if (isIBK && creditAmount > 0) {
       ibkDeposits.push({
         rowNum: index + 2,
         date: formatDateForExport(row[0]),  // A열: 일자
         merchant: (row[2] || '').toString().trim(),  // C열: 거래처
         amount: creditAmount,
         taxInvoice: row[10] || '',  // K열: 세금계산서
-        memo: row[9] || ''  // J열: 메모
+        memo: row[9] || '',  // J열: 메모
+        account: account  // 디버깅용
       });
     }
   });
 
   if (ibkDeposits.length === 0) {
-    ui.alert('기업은행 입금내역이 없습니다!', ui.ButtonSet.OK);
+    // 디버깅 정보 제공
+    let debugMsg = '기업은행 입금내역을 찾을 수 없습니다!\n\n';
+    debugMsg += `📊 전체 거래: ${txnData.length}건\n`;
+    debugMsg += `💰 입금 거래: ${totalDeposits}건\n\n`;
+    debugMsg += `📋 발견된 계좌/카드 목록 (B열):\n`;
+
+    const accountList = Array.from(allAccounts).slice(0, 10);
+    accountList.forEach((acc, idx) => {
+      debugMsg += `${idx + 1}. ${acc}\n`;
+    });
+
+    if (allAccounts.size > 10) {
+      debugMsg += `... 외 ${allAccounts.size - 10}개\n`;
+    }
+
+    debugMsg += `\n💡 B열(카드/계좌)에 "기업은행", "IBK", "기업" 중 하나가 포함되어야 합니다.`;
+
+    ui.alert('기업은행 입금내역 없음', debugMsg, ui.ButtonSet.OK);
     return;
   }
 
