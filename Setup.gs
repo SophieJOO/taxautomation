@@ -110,17 +110,31 @@ function setupAhyunClinicSheets() {
 
 /**
  * 모든 시트 재생성
+ * 주의: 기존 데이터를 모두 삭제하고 초기 상태로 되돌립니다.
  */
 function recreateAllSheets() {
   const ui = SpreadsheetApp.getUi();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
   
   const response = ui.alert(
-    '⚠️ 모든 시트 재생성',
-    '기존 시트가 있으면 내용이 삭제됩니다.\n\n정말 재생성하시겠습니까?',
+    '⚠️ 모든 시트 재생성 (데이터 삭제 경고)',
+    '이 작업은 모든 시트의 데이터를 영구적으로 삭제하고 초기화합니다.\n\n' +
+    '정말 진행하시겠습니까?\n(백업하지 않은 데이터는 복구할 수 없습니다)',
     ui.ButtonSet.YES_NO
   );
   
   if (response != ui.Button.YES) return;
+  
+  // 기존 시트 삭제 (안전한 재생성을 위해)
+  const sheetsToDelete = [
+    '거래내역통합', '분류규칙', '월간보고서', '세무사전달', 
+    'CSV임시', '세금계산서매칭', '세금계산서_은행내역'
+  ];
+  
+  sheetsToDelete.forEach(name => {
+    const sheet = ss.getSheetByName(name);
+    if (sheet) ss.deleteSheet(sheet);
+  });
   
   setupAhyunClinicSheets();
 }
@@ -133,13 +147,14 @@ function createTransactionSheet(ss) {
   
   let sheet = ss.getSheetByName('거래내역통합');
   
-  if (!sheet) {
-    sheet = ss.insertSheet('거래내역통합');
-    Logger.log('거래내역통합 시트 생성됨');
-  } else {
-    sheet.clear();
-    Logger.log('거래내역통합 시트 클리어됨');
+  // 이미 존재하면 건너뜀 (데이터 보호)
+  if (sheet) {
+    Logger.log('거래내역통합 시트가 이미 존재하여 초기화를 건너뜁니다.');
+    return;
   }
+  
+  sheet = ss.insertSheet('거래내역통합');
+  Logger.log('거래내역통합 시트 생성됨');
   
   // 헤더
   const headers = [
@@ -183,13 +198,14 @@ function createRulesSheet(ss) {
   
   let sheet = ss.getSheetByName('분류규칙');
   
-  if (!sheet) {
-    sheet = ss.insertSheet('분류규칙');
-    Logger.log('분류규칙 시트 생성됨');
-  } else {
-    sheet.clear();
-    Logger.log('분류규칙 시트 클리어됨');
+  // 이미 존재하면 건너뜀 (데이터 보호)
+  if (sheet) {
+    Logger.log('분류규칙 시트가 이미 존재하여 초기화를 건너뜁니다.');
+    return;
   }
+  
+  sheet = ss.insertSheet('분류규칙');
+  Logger.log('분류규칙 시트 생성됨');
   
   // 헤더
   const headers = [['우선순위', '대분류', '중분류(계정과목)', '키워드', '사업/개인', '메모']];
@@ -272,13 +288,14 @@ function createMonthlyReportSheet(ss) {
   
   let sheet = ss.getSheetByName('월간보고서');
   
-  if (!sheet) {
-    sheet = ss.insertSheet('월간보고서');
-    Logger.log('월간보고서 시트 생성됨');
-  } else {
-    sheet.clear();
-    Logger.log('월간보고서 시트 클리어됨');
+  // 이미 존재하면 건너뜀 (데이터 보호)
+  if (sheet) {
+    Logger.log('월간보고서 시트가 이미 존재하여 초기화를 건너뜁니다.');
+    return;
   }
+  
+  sheet = ss.insertSheet('월간보고서');
+  Logger.log('월간보고서 시트 생성됨');
   
   const headers = [['월', '대분류', '계정과목', '사업지출', '개인지출', '합계', '거래건수']];
   sheet.getRange(1, 1, 1, headers[0].length).setValues(headers);
@@ -302,13 +319,14 @@ function createAccountantSheet(ss) {
   
   let sheet = ss.getSheetByName('세무사전달');
   
-  if (!sheet) {
-    sheet = ss.insertSheet('세무사전달');
-    Logger.log('세무사전달 시트 생성됨');
-  } else {
-    sheet.clear();
-    Logger.log('세무사전달 시트 클리어됨');
+  // 이미 존재하면 건너뜀 (데이터 보호)
+  if (sheet) {
+    Logger.log('세무사전달 시트가 이미 존재하여 초기화를 건너뜁니다.');
+    return;
   }
+  
+  sheet = ss.insertSheet('세무사전달');
+  Logger.log('세무사전달 시트 생성됨');
   
   const headers = [['일자', '계정과목', '거래처', '금액', '메모']];
   sheet.getRange(1, 1, 1, headers[0].length).setValues(headers);
@@ -332,13 +350,14 @@ function createTempSheet(ss) {
   
   let sheet = ss.getSheetByName('CSV임시');
   
-  if (!sheet) {
-    sheet = ss.insertSheet('CSV임시');
-    Logger.log('CSV임시 시트 생성됨');
-  } else {
-    sheet.clear();
-    Logger.log('CSV임시 시트 클리어됨');
+  // 이미 존재하면 건너뜀 (데이터 보호)
+  if (sheet) {
+    Logger.log('CSV임시 시트가 이미 존재하여 초기화를 건너뜁니다.');
+    return;
   }
+  
+  sheet = ss.insertSheet('CSV임시');
+  Logger.log('CSV임시 시트 생성됨');
   
   const headers = [['일자', '카드/계좌', '거래처', '출금액', '입금액', '메모']];
   sheet.getRange(1, 1, 1, headers[0].length).setValues(headers);
@@ -367,13 +386,14 @@ function createTaxMatchingSheet(ss) {
   
   let sheet = ss.getSheetByName('세금계산서매칭');
   
-  if (!sheet) {
-    sheet = ss.insertSheet('세금계산서매칭');
-    Logger.log('세금계산서매칭 시트 생성됨');
-  } else {
-    sheet.clear();
-    Logger.log('세금계산서매칭 시트 클리어됨');
+  // 이미 존재하면 건너뜀 (데이터 보호)
+  if (sheet) {
+    Logger.log('세금계산서매칭 시트가 이미 존재하여 초기화를 건너뜁니다.');
+    return;
   }
+  
+  sheet = ss.insertSheet('세금계산서매칭');
+  Logger.log('세금계산서매칭 시트 생성됨');
   
   const headers = [[
     '작성일자', '공급받는자', '공급가액', '세액', '합계금액', '비고', // 세금계산서 정보
@@ -417,11 +437,13 @@ function createTaxMatchingSheet(ss) {
 function createTaxBankSheet(ss) {
   let sheet = ss.getSheetByName('세금계산서_은행내역');
   
-  if (!sheet) {
-    sheet = ss.insertSheet('세금계산서_은행내역');
-  } else {
-    sheet.clear();
+  // 이미 존재하면 건너뜀 (데이터 보호)
+  if (sheet) {
+    Logger.log('세금계산서_은행내역 시트가 이미 존재하여 초기화를 건너뜁니다.');
+    return;
   }
+  
+  sheet = ss.insertSheet('세금계산서_은행내역');
   
   // 헤더
   const headers = [['일자', '내용', '출금액', '입금액', '잔액', '거래점', '비고']];
