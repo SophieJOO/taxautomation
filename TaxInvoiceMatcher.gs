@@ -287,3 +287,73 @@ function getEditDistance(s1, s2) {
   }
   return costs[s2.length];
 }
+
+/**
+ * 월별 매칭 통계 보고서 생성
+ */
+function generateTaxInvoiceReport() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('세금계산서매칭');
+  const ui = SpreadsheetApp.getUi();
+
+  if (!sheet || sheet.getLastRow() < 2) {
+    ui.alert('통계 없음', '데이터가 없습니다. 먼저 세금계산서를 업로드하고 매칭을 실행하세요.', ui.ButtonSet.OK);
+    return;
+  }
+
+  const lastRow = sheet.getLastRow();
+  const data = sheet.getRange(2, 1, lastRow - 1, 8).getValues(); // A:작성일자 ~ H:매칭점수
+
+  // 월별 통계
+  const monthlyStats = {};
+
+  data.forEach(row => {
+    const dateValue = row[0]; // A: 작성일자
+    const amount = parseFloat(row[4]) || 0; // E: 합계금액
+    const status = row[6]; // G: 매칭상태
+
+    if (!dateValue) return;
+
+    // 날짜를 문자열로 변환
+    const dateStr = normalizeDate(dateValue);
+    if (!dateStr) return;
+    
+    const month = dateStr.substring(0, 7); // YYYY-MM
+
+    if (!monthlyStats[month]) {
+      monthlyStats[month] = {
+        total: 0,
+        matched: 0,
+        unmatched: 0,
+        totalAmount: 0,
+        unmatchedAmount: 0
+      };
+    }
+
+    monthlyStats[month].total++;
+    monthlyStats[month].totalAmount += amount;
+
+    if (status === '정확' || status === '유사' || status === '복합') {
+      monthlyStats[month].matched++;
+    } else {
+      monthlyStats[month].unmatched++;
+      monthlyStats[month].unmatchedAmount += amount;
+    }
+  });
+
+  // 메시지 생성
+  let message = '📊 월별 세금계산서 매칭 통계\n\n';
+
+  const months = Object.keys(monthlyStats).sort().reverse();
+  months.forEach(month => {
+    const stats = monthlyStats[month];
+    const matchRate = stats.total > 0 ? ((stats.matched / stats.total) * 100).toFixed(1) : 0;
+
+    message += `${month}\n`;
+    message += `  총 ${stats.total}건 (${stats.totalAmount.toLocaleString()}원)\n`;
+    message += `  ✅ 매칭: ${stats.matched}건 (${matchRate}%)\n`;
+    message += `  ⚠️ 미매칭: ${stats.unmatched}건 (${stats.unmatchedAmount.toLocaleString()}원)\n\n`;
+  });
+
+  ui.alert('월별 통계', message, ui.ButtonSet.OK);
+}
