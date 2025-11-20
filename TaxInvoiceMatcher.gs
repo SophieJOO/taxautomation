@@ -11,7 +11,12 @@
 // 1. 세금계산서 업로드 처리
 // ========================================
 
+// ========================================
+// 1. 세금계산서 및 은행내역 업로드 처리
+// ========================================
+
 function processTaxInvoiceCSV(csvData) {
+  // ... (기존 코드 유지) ...
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const sheet = ss.getSheetByName('세금계산서매칭');
@@ -34,15 +39,6 @@ function processTaxInvoiceCSV(csvData) {
       
       // 빈 행 스킵
       if (!row[0] || row[0] === '') continue;
-      
-      // 홈택스 엑셀/CSV 형식 추정
-      // 보통: 작성일자, 공급받는자등록번호, 공급받는자상호, ..., 합계금액, ...
-      // 여기서는 사용자가 업로드한 CSV의 열 순서가 중요함.
-      // 일단 [일자, 공급받는자, 공급가액, 세액, 합계금액, 비고] 순서로 가정하거나
-      // CSVUploader에서 매핑을 해야 하는데, 
-      // 현재는 간단히 0:일자, 1:상호, 2:공급가액, 3:세액, 4:합계금액, 5:비고 라고 가정
-      // (실제 홈택스 파일은 컬럼이 매우 많으므로, 사용자가 필요한 컬럼만 남겨서 업로드한다고 가정하거나
-      //  추후 컬럼 매핑 기능이 필요할 수 있음. 여기서는 단순화)
       
       const date = normalizeDate(row[0]);
       const vendor = row[1] || '';
@@ -89,6 +85,66 @@ function processTaxInvoiceCSV(csvData) {
   }
 }
 
+/**
+ * 세금계산서용 은행내역 업로드 처리 (신규)
+ */
+function processTaxBankCSV(csvData) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName('세금계산서_은행내역');
+    
+    if (!sheet) {
+      throw new Error('[세금계산서_은행내역] 시트를 찾을 수 없습니다.');
+    }
+    
+    // 기존 데이터 삭제 (헤더 제외)
+    if (sheet.getLastRow() > 1) {
+      sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).clearContent();
+    }
+    
+    let imported = 0;
+    const dataToImport = [];
+    
+    // 헤더 행 건너뛰기
+    for (let i = 1; i < csvData.length; i++) {
+      const row = csvData[i];
+      if (!row[0] || row[0] === '') continue;
+      
+      const date = normalizeDate(row[0]);
+      if (!date) continue;
+      
+      // CSV 컬럼 매핑 (은행별로 다를 수 있으나 일반적인 포맷 가정)
+      // 0:일자, 1:내용(거래처), 2:출금액, 3:입금액, 4:잔액, 5:거래점, 6:비고
+      dataToImport.push([
+        date,
+        row[1] || '', // 내용
+        parseFloat(row[2]) || 0, // 출금액
+        parseFloat(row[3]) || 0, // 입금액
+        parseFloat(row[4]) || 0, // 잔액
+        row[5] || '', // 거래점
+        row[6] || ''  // 비고
+      ]);
+      
+      imported++;
+    }
+    
+    if (dataToImport.length > 0) {
+      sheet.getRange(2, 1, dataToImport.length, dataToImport[0].length).setValues(dataToImport);
+    }
+    
+    return {
+      imported: imported,
+      categorized: 0,
+      uncategorized: 0,
+      type: 'tax_bank'
+    };
+    
+  } catch (error) {
+    Logger.log('processTaxBankCSV 오류: ' + error.toString());
+    throw error;
+  }
+}
+
 // ========================================
 // 2. 매칭 알고리즘 실행
 // ========================================
@@ -96,26 +152,26 @@ function processTaxInvoiceCSV(csvData) {
 function runTaxInvoiceMatching() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const taxSheet = ss.getSheetByName('세금계산서매칭');
-  const txnSheet = ss.getSheetByName('거래내역통합');
+  const txnSheet = ss.getSheetByName('세금계산서_은행내역'); // 변경된 시트 참조
   const ui = SpreadsheetApp.getUi();
   
   if (!taxSheet || !txnSheet) {
-    ui.alert('필요한 시트가 없습니다.');
+    ui.alert('필요한 시트가 없습니다. [세금계산서매칭] 또는 [세금계산서_은행내역] 시트를 확인하세요.');
     return;
   }
   
   const taxData = taxSheet.getRange(2, 1, taxSheet.getLastRow()-1, 13).getValues();
-  const txnData = txnSheet.getRange(2, 1, txnSheet.getLastRow()-1, 10).getValues();
+  const txnData = txnSheet.getRange(2, 1, txnSheet.getLastRow()-1, 7).getValues(); // 7열까지만 읽음
   
   // 입출금 내역 분리 및 전처리
   const transactions = txnData.map((row, index) => ({
     id: index + 2,
     date: new Date(row[0]),
-    vendor: normalizeName(row[2]),
-    originalVendor: row[2],
-    amount: (parseFloat(row[3]) || 0) + (parseFloat(row[4]) || 0), // 입금+출금 (절대값)
-    type: parseFloat(row[4]) > 0 ? '입금' : '출금',
-    memo: row[9],
+    vendor: normalizeName(row[1]), // B열: 내용(거래처)
+    originalVendor: row[1],
+    amount: (parseFloat(row[2]) || 0) + (parseFloat(row[3]) || 0), // 출금+입금
+    type: parseFloat(row[3]) > 0 ? '입금' : '출금',
+    memo: row[6], // G열: 비고
     matched: false
   })).filter(t => t.amount > 0); // 0원 거래 제외
   

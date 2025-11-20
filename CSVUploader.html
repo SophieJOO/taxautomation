@@ -261,55 +261,37 @@
 </head>
 
 <body>
-  <div class="container">
-    <h1>🏥 CSV 파일 업로드</h1>
-    <p class="subtitle">아현재한의원 회계 자동화 시스템 v3.1</p>
 
-    <div class="upload-type-group" style="margin-bottom: 20px; text-align: center;">
-      <label style="margin-right: 20px; cursor: pointer;">
-        <input type="radio" name="uploadType" value="bank" checked> 🏦 은행/카드 거래내역
-      </label>
-      <label style="cursor: pointer;">
-        <input type="radio" name="uploadType" value="tax" style="margin-left: 10px;"> 🧾 세금계산서 (홈택스)
-      </label>
+  <input type="file" id="fileInput" accept=".csv,text/csv">
+
+  <div class="file-info" id="fileInfo">
+    <div class="file-name" id="fileName">파일명.csv</div>
+    <div class="file-details" id="fileDetails">크기: 0 KB | 행: 0개</div>
+  </div>
+
+  <div class="button-group">
+    <button id="uploadBtn" disabled>업로드 및 자동처리</button>
+    <button id="cancelBtn">취소</button>
+  </div>
+
+  <div class="progress-container" id="progressContainer">
+    <div class="progress-bar">
+      <div class="progress-fill" id="progressFill"></div>
     </div>
+    <div class="progress-text" id="progressText">처리 중...</div>
+  </div>
 
-    <div class="upload-area" id="uploadArea">
-      <div class="upload-icon">📁</div>
-      <div class="upload-text">클릭하거나 파일을 드래그하세요</div>
-      <div class="upload-hint">선택한 유형의 CSV 파일을 업로드하세요</div>
-    </div>
+  <div class="status" id="status"></div>
 
-    <input type="file" id="fileInput" accept=".csv,text/csv">
-
-    <div class="file-info" id="fileInfo">
-      <div class="file-name" id="fileName">파일명.csv</div>
-      <div class="file-details" id="fileDetails">크기: 0 KB | 행: 0개</div>
-    </div>
-
-    <div class="button-group">
-      <button id="uploadBtn" disabled>업로드 및 자동처리</button>
-      <button id="cancelBtn">취소</button>
-    </div>
-
-    <div class="progress-container" id="progressContainer">
-      <div class="progress-bar">
-        <div class="progress-fill" id="progressFill"></div>
-      </div>
-      <div class="progress-text" id="progressText">처리 중...</div>
-    </div>
-
-    <div class="status" id="status"></div>
-
-    <div class="format-info">
-      <strong>📋 CSV 파일 형식:</strong>
-      <ul>
-        <li>첫 번째 행은 헤더입니다</li>
-        <li>필수 열: 일자, 카드/계좌, 거래처, 출금액, 입금액</li>
-        <li>선택 열: 메모</li>
-        <li>인코딩: UTF-8 권장</li>
-      </ul>
-    </div>
+  <div class="format-info">
+    <strong>📋 CSV 파일 형식:</strong>
+    <ul>
+      <li>첫 번째 행은 헤더입니다</li>
+      <li>필수 열: 일자, 카드/계좌, 거래처, 출금액, 입금액</li>
+      <li>선택 열: 메모</li>
+      <li>인코딩: UTF-8 권장</li>
+    </ul>
+  </div>
   </div>
 
   <script>

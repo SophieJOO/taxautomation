@@ -72,8 +72,13 @@ function processUploadedCSV(csvData, uploadType = 'bank') {
     if (uploadType === 'tax') {
       return processTaxInvoiceCSV(csvData);
     }
+    
+    // 세금계산서용 은행내역 업로드인 경우 (신규)
+    if (uploadType === 'tax_bank') {
+      return processTaxBankCSV(csvData);
+    }
 
-    // 기존 은행/카드 거래내역 처리
+    // 기존 은행/카드 거래내역 처리 (월간 회계용)
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const txnSheet = ss.getSheetByName('거래내역통합');
 
