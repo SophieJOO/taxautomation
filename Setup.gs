@@ -40,7 +40,8 @@ function setupAhyunClinicSheets() {
     '2. 분류규칙\n' +
     '3. 월간보고서\n' +
     '4. 세무사전달\n' +
-    '5. CSV임시\n\n' +
+    '5. CSV임시\n' +
+    '6. 세금계산서매칭\n\n' +
     '계속하시겠습니까?',
     ui.ButtonSet.YES_NO
   );
@@ -71,8 +72,12 @@ function setupAhyunClinicSheets() {
     createAccountantSheet(ss);
     
     // 5. CSV임시 시트
-    SpreadsheetApp.getActive().toast('5/5: CSV임시 시트 생성 중...', '진행중', 2);
+    SpreadsheetApp.getActive().toast('5/6: CSV임시 시트 생성 중...', '진행중', 2);
     createTempSheet(ss);
+
+    // 6. 세금계산서매칭 시트
+    SpreadsheetApp.getActive().toast('6/6: 세금계산서매칭 시트 생성 중...', '진행중', 2);
+    createTaxMatchingSheet(ss);
     
     // 완료
     SpreadsheetApp.getActive().toast('설정 완료!', '완료', 3);
@@ -346,6 +351,57 @@ function createTempSheet(ss) {
     .setFontStyle('italic');
   
   Logger.log('CSV임시 시트 설정 완료');
+}
+
+/**
+ * 세금계산서매칭 시트 생성
+ */
+function createTaxMatchingSheet(ss) {
+  if (!ss) throw new Error('스프레드시트 객체가 없습니다.');
+  
+  let sheet = ss.getSheetByName('세금계산서매칭');
+  
+  if (!sheet) {
+    sheet = ss.insertSheet('세금계산서매칭');
+    Logger.log('세금계산서매칭 시트 생성됨');
+  } else {
+    sheet.clear();
+    Logger.log('세금계산서매칭 시트 클리어됨');
+  }
+  
+  const headers = [[
+    '작성일자', '공급받는자', '공급가액', '세액', '합계금액', '비고', // 세금계산서 정보
+    '매칭상태', '매칭점수', // 매칭 결과
+    '거래일자', '거래처', '입금액', '출금액', '메모' // 매칭된 거래 내역
+  ]];
+  
+  sheet.getRange(1, 1, 1, headers[0].length).setValues(headers);
+  
+  // 스타일
+  sheet.getRange(1, 1, 1, headers[0].length)
+    .setFontWeight('bold')
+    .setBackground('#673ab7') // 보라색
+    .setFontColor('#ffffff')
+    .setHorizontalAlignment('center');
+    
+  // 열 너비
+  sheet.setColumnWidth(1, 100); // 작성일자
+  sheet.setColumnWidth(2, 150); // 공급받는자
+  sheet.setColumnWidth(3, 100); // 공급가액
+  sheet.setColumnWidth(4, 80);  // 세액
+  sheet.setColumnWidth(5, 100); // 합계금액
+  sheet.setColumnWidth(6, 150); // 비고
+  sheet.setColumnWidth(7, 100); // 매칭상태
+  sheet.setColumnWidth(8, 80);  // 매칭점수
+  sheet.setColumnWidth(9, 100); // 거래일자
+  sheet.setColumnWidth(10, 150); // 거래처
+  sheet.setColumnWidth(11, 100); // 입금액
+  sheet.setColumnWidth(12, 100); // 출금액
+  sheet.setColumnWidth(13, 150); // 메모
+  
+  sheet.setFrozenRows(1);
+  
+  Logger.log('세금계산서매칭 시트 설정 완료');
 }
 
 /**

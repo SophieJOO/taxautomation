@@ -37,21 +37,6 @@ function onOpen() {
         .addItem('① 거래상세내역 (전체)', 'exportDetailedTransactions')
         .addItem('② 계정과목별 집계', 'exportCategorySummary')
         .addItem('③ 사업지출만 (간단)', 'exportForAccountant'))
-      .addSeparator()
-      .addItem('🔍 미분류 항목 보기', 'showUncategorized')
-      .addItem('📈 계정과목별 집계', 'showCategoryTotals')
-      .addItem('⚙️ 분류규칙 자동 최적화', 'optimizeRules')
-      .addSeparator()
-      .addSubMenu(ui.createMenu('🧾 세금계산서 관리')
-        .addItem('📋 입금내역 보기', 'showIncomeTransactions')
-        .addItem('⚠️ 미발행 내역 검사', 'checkTaxInvoiceStatus')
-        .addItem('📊 월별 대조 보고서', 'generateTaxInvoiceReport'))
-      .addSeparator()
-      .addItem('🔧 기존 데이터 복구', 'fixExistingData')
-      .addItem('🆘 도움말', 'showHelp')
-      .addToUi();
-
-    SpreadsheetApp.getActive().toast('아현재한의원 회계 시스템 v3.3 준비 완료! 세금계산서 관리 기능이 추가되었습니다!', '알림', 5);
   } catch (error) {
     Logger.log('메뉴 생성 오류: ' + error.toString());
   }
@@ -81,8 +66,14 @@ function showCSVUploader() {
 /**
  * 업로드된 CSV 데이터 처리 (HTML에서 호출)
  */
-function processUploadedCSV(csvData) {
+function processUploadedCSV(csvData, uploadType = 'bank') {
   try {
+    // 세금계산서 업로드인 경우
+    if (uploadType === 'tax') {
+      return processTaxInvoiceCSV(csvData);
+    }
+
+    // 기존 은행/카드 거래내역 처리
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const txnSheet = ss.getSheetByName('거래내역통합');
 
@@ -131,7 +122,8 @@ function processUploadedCSV(csvData) {
     return {
       imported: imported,
       categorized: categorized,
-      uncategorized: uncategorized
+      uncategorized: uncategorized,
+      type: 'bank'
     };
 
   } catch (error) {

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <base target="_top">
   <meta charset="UTF-8">
@@ -36,6 +37,7 @@
         opacity: 0;
         transform: translateY(-30px);
       }
+
       to {
         opacity: 1;
         transform: translateY(0);
@@ -113,8 +115,13 @@
     }
 
     @keyframes fadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
+      from {
+        opacity: 0;
+      }
+
+      to {
+        opacity: 1;
+      }
     }
 
     .file-name {
@@ -252,15 +259,25 @@
     }
   </style>
 </head>
+
 <body>
   <div class="container">
     <h1>🏥 CSV 파일 업로드</h1>
     <p class="subtitle">아현재한의원 회계 자동화 시스템 v3.1</p>
 
+    <div class="upload-type-group" style="margin-bottom: 20px; text-align: center;">
+      <label style="margin-right: 20px; cursor: pointer;">
+        <input type="radio" name="uploadType" value="bank" checked> 🏦 은행/카드 거래내역
+      </label>
+      <label style="cursor: pointer;">
+        <input type="radio" name="uploadType" value="tax" style="margin-left: 10px;"> 🧾 세금계산서 (홈택스)
+      </label>
+    </div>
+
     <div class="upload-area" id="uploadArea">
       <div class="upload-icon">📁</div>
       <div class="upload-text">클릭하거나 파일을 드래그하세요</div>
-      <div class="upload-hint">카드사/은행 CSV 파일을 업로드하세요</div>
+      <div class="upload-hint">선택한 유형의 CSV 파일을 업로드하세요</div>
     </div>
 
     <input type="file" id="fileInput" accept=".csv,text/csv">
@@ -350,7 +367,7 @@
       fileName.textContent = file.name;
 
       const reader = new FileReader();
-      reader.onload = function(e) {
+      reader.onload = function (e) {
         const text = e.target.result;
         parsedData = parseCSV(text);
 
@@ -404,11 +421,13 @@
 
       setProgress(10, 'CSV 데이터 전송 중...');
 
+      const uploadType = document.querySelector('input[name="uploadType"]:checked').value;
+
       // Google Apps Script 서버로 데이터 전송
       google.script.run
         .withSuccessHandler(onSuccess)
         .withFailureHandler(onError)
-        .processUploadedCSV(parsedData);
+        .processUploadedCSV(parsedData, uploadType);
     });
 
     // 취소 버튼
@@ -416,24 +435,6 @@
       google.script.host.close();
     });
 
-    // 성공 핸들러
-    function onSuccess(result) {
-      setProgress(100, '완료!');
-
-      setTimeout(() => {
-        showStatus(
-          `✅ 업로드 완료!\n\n` +
-          `📥 가져온 거래: ${result.imported}건\n` +
-          `✅ 자동분류: ${result.categorized}건\n` +
-          `❓ 미분류: ${result.uncategorized}건`,
-          'success'
-        );
-
-        uploadBtn.disabled = true;
-        cancelBtn.textContent = '닫기';
-        cancelBtn.disabled = false;
-      }, 500);
-    }
 
     // 에러 핸들러
     function onError(error) {
@@ -460,4 +461,5 @@
     }
   </script>
 </body>
+
 </html>
