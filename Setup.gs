@@ -411,6 +411,42 @@ function createTaxMatchingSheet(ss) {
 }
 
 /**
+ * 세금계산서_은행내역 시트 생성 (신규)
+ * - 세금계산서 대조를 위한 전용 은행 거래내역 시트
+ */
+function createTaxBankSheet(ss) {
+  let sheet = ss.getSheetByName('세금계산서_은행내역');
+  
+  if (!sheet) {
+    sheet = ss.insertSheet('세금계산서_은행내역');
+  } else {
+    sheet.clear();
+  }
+  
+  // 헤더
+  const headers = [['일자', '내용', '출금액', '입금액', '잔액', '거래점', '비고']];
+  sheet.getRange(1, 1, 1, headers[0].length).setValues(headers);
+  
+  // 스타일
+  sheet.getRange(1, 1, 1, headers[0].length)
+    .setFontWeight('bold')
+    .setBackground('#4285f4')
+    .setFontColor('#ffffff')
+    .setHorizontalAlignment('center');
+    
+  // 열 너비
+  sheet.setColumnWidth(1, 120); // 일자
+  sheet.setColumnWidth(2, 250); // 내용
+  sheet.setColumnWidth(3, 120); // 출금액
+  sheet.setColumnWidth(4, 120); // 입금액
+  sheet.setColumnWidth(5, 120); // 잔액
+  sheet.setColumnWidth(6, 100); // 거래점
+  sheet.setColumnWidth(7, 150); // 비고
+  
+  sheet.setFrozenRows(1);
+}
+
+/**
  * 설정 가이드 표시
  */
 function showSetupGuide() {
