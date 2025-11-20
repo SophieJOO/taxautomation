@@ -7,18 +7,22 @@
 /**
  * 메뉴에 설정 버튼 추가
  */
-function onOpen() {
-  try {
-    const ui = SpreadsheetApp.getUi();
-    ui.createMenu('🔧 시스템 설정')
-      .addItem('⚡ 초기 설정 실행', 'setupAhyunClinicSheets')
-      .addItem('🔄 시트 재생성', 'recreateAllSheets')
-      .addItem('📖 설정 가이드', 'showSetupGuide')
-      .addToUi();
-  } catch (error) {
-    Logger.log('메뉴 생성 오류: ' + error.toString());
-  }
-}
+/**
+ * 메뉴에 설정 버튼 추가
+ * (code.gs의 onOpen에서 통합 관리됨)
+ */
+// function onOpen() {
+//   try {
+//     const ui = SpreadsheetApp.getUi();
+//     ui.createMenu('🔧 시스템 설정')
+//       .addItem('⚡ 초기 설정 실행', 'setupAhyunClinicSheets')
+//       .addItem('🔄 시트 재생성', 'recreateAllSheets')
+//       .addItem('📖 설정 가이드', 'showSetupGuide')
+//       .addToUi();
+//   } catch (error) {
+//     Logger.log('메뉴 생성 오류: ' + error.toString());
+//   }
+// }
 
 /**
  * 메인 설정 함수

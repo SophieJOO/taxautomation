@@ -33,10 +33,21 @@ function onOpen() {
       .addItem('🔄 자동분류 실행', 'runAutoCategory')
       .addItem('📊 월간 보고서 생성', 'generateMonthlyReport')
       .addSeparator()
+      .addSubMenu(ui.createMenu('🧾 세금계산서 관리')
+        .addItem('① 세금계산서 업로드', 'showCSVUploader')
+        .addItem('② 매칭 실행', 'runTaxInvoiceMatching')
+        .addItem('📊 월별 대조 보고서', 'generateTaxInvoiceReport'))
+      .addSeparator()
       .addSubMenu(ui.createMenu('📁 세무사 전달용')
         .addItem('① 거래상세내역 (전체)', 'exportDetailedTransactions')
         .addItem('② 계정과목별 집계', 'exportCategorySummary')
         .addItem('③ 사업지출만 (간단)', 'exportForAccountant'))
+      .addSeparator()
+      .addSubMenu(ui.createMenu('🔧 시스템 설정')
+        .addItem('⚡ 초기 설정 실행', 'setupAhyunClinicSheets')
+        .addItem('🔄 시트 재생성', 'recreateAllSheets')
+        .addItem('📖 설정 가이드', 'showSetupGuide'))
+      .addToUi();
   } catch (error) {
     Logger.log('메뉴 생성 오류: ' + error.toString());
   }
