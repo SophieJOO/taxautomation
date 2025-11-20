@@ -235,21 +235,6 @@ function findSubsetSum(transactions, targetAmount, maxDepth) {
   
   return search(0, 0, []);
 }
-
-function updateMatchResult(sheet, row, txn, status, score) {
-  sheet.getRange(row, 7).setValue(status); // 매칭상태
-  sheet.getRange(row, 8).setValue(score);  // 매칭점수
-  sheet.getRange(row, 9).setValue(txn.date); // 거래일자
-  sheet.getRange(row, 10).setValue(txn.originalVendor); // 거래처
-  sheet.getRange(row, 11).setValue(txn.type === '입금' ? txn.amount : 0); // 입금액
-  sheet.getRange(row, 12).setValue(txn.type === '출금' ? txn.amount : 0); // 출금액
-  sheet.getRange(row, 13).setValue(txn.memo); // 메모
-}
-
-// ========================================
-// 3. 유틸리티 함수
-// ========================================
-
 /**
  * 이름 정규화: (주), 공백, 특수문자 제거
  */
