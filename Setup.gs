@@ -69,7 +69,46 @@ function setupAhyunClinicSheets() {
     
     // 4. 세무사전달 시트
     SpreadsheetApp.getActive().toast('4/5: 세무사전달 시트 생성 중...', '진행중', 2);
-    createAccountantSheet(ss);
+    // 5. CSV임시 시트
+    SpreadsheetApp.getActive().toast('5/7: CSV임시 시트 생성 중...', '진행중', 2);
+    createTempSheet(ss);
+
+    // 6. 세금계산서매칭 시트
+    SpreadsheetApp.getActive().toast('6/7: 세금계산서매칭 시트 생성 중...', '진행중', 2);
+    createTaxMatchingSheet(ss);
+
+    // 7. 세금계산서_은행내역 시트 (신규)
+    SpreadsheetApp.getActive().toast('7/7: 세금계산서_은행내역 시트 생성 중...', '진행중', 2);
+    createTaxBankSheet(ss);
+    
+    // 완료
+    SpreadsheetApp.getActive().toast('설정 완료!', '완료', 3);
+    
+    ui.alert(
+      '✅ 설정 완료!',
+      '모든 시트가 생성되었습니다.\n\n' +
+      '다음 단계:\n' +
+      '1. [확장 프로그램] > [Apps Script]\n' +
+      '2. 왼쪽에서 코드.gs 클릭 (또는 새로 생성)\n' +
+      '3. Code.gs 파일 내용을 전체 복사해서 붙여넣기\n' +
+      '4. 저장 (💾) 후 시트 닫기\n' +
+      '5. Google Sheets 새로고침 (F5)\n' +
+      '6. [💰 한의원 회계] 메뉴 확인!\n\n' +
+      '설정이 완료되었습니다! 🎉',
+      ui.ButtonSet.OK
+    );
+    
+  } catch (error) {
+    Logger.log('설정 오류: ' + error.toString());
+    ui.alert('오류 발생', '오류: ' + error.toString() + '\n\n로그를 확인하세요.', ui.ButtonSet.OK);
+  }
+}
+
+/**
+ * 모든 시트 재생성
+ */
+function recreateAllSheets() {
+  const ui = SpreadsheetApp.getUi();
   
   const response = ui.alert(
     '⚠️ 모든 시트 재생성',
